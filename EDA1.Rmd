@@ -144,14 +144,8 @@ test.no <- cs2.no[-index.no,]
 cs2.train <- rbind(train.no, train.yes)
 cs2.test <- rbind(test.no, test.yes)
 
-# Getting rid of duration  - it will predict nearly perfectly - with this in mean prediction error = 0
-# Also have to get rid of ID since it was being selected as good explanatory variable
-#BankAF.train = BankAF.train %>% dplyr::select(-c(duration, ID))
-#BankAF.test = BankAF.test %>% dplyr::select(-c(duration, ID))
-
 # remove intermediate data sets
 rm(test.no, test.yes, train.no, train.yes)
-
 
 ```
 
@@ -192,6 +186,9 @@ predTable <- tibble(Predicted = as.factor(predicted.classes), Observed = cs2.tes
 confusionMatrix(predTable$Predicted, reference = predTable$Observed)
 ```
 
+```{r}
+
+```
 
 
 
