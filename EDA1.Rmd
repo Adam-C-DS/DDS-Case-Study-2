@@ -132,7 +132,7 @@ library(caret)
 
 # Create Train and Test sets ----
 ## currently 90/10 Train/Test proportion of yes to no is 16 to 84
-set.seed(35)
+#set.seed(35)
 index.yes <- sample(1:dim(cs2.yes)[1],floor(0.9*dim(cs2.yes)),replace=F)
 train.yes <- cs2.yes[index.yes,]
 test.yes <- cs2.yes[-index.yes,]
@@ -163,7 +163,7 @@ summary(mylogit.1)
 
 # Make predictions
 probabilities <- mylogit.1 %>% predict(cs2.test, type = "response")
-predicted.classes <- ifelse(probabilities < 0.5, "No", "Yes")
+predicted.classes <- ifelse(probabilities < 0.3, "No", "Yes")
 # Model accuracy
 mean(predicted.classes == cs2.test$Attrition)
 
@@ -181,7 +181,7 @@ summary(step.model)
 
 # Make predictions
 probabilities <- step.model %>% predict(cs2.test, type = "response")
-predicted.classes <- ifelse(probabilities < 0.21, "No", "Yes")
+predicted.classes <- ifelse(probabilities < 0.3, "No", "Yes")
 # Model accuracy
 mean(predicted.classes == cs2.test$Attrition)
 
