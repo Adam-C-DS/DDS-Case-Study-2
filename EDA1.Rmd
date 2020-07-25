@@ -4,7 +4,7 @@ author: "Adam Canton"
 date: "7/24/2020"
 output: html_document
 ---
-
+# Intialize
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(magrittr)
@@ -13,9 +13,16 @@ library(dplyr)
 library(ggplot2)
 library(naniar)
 library(GGally)
-
+library(e1071)
+library(class)
+library(caret)
+library(MASS)
+library(caret)
+library(ggcorrplot)
+library(Lahman)
+library(olsrr)
+library(glmnet)
 ```
-
 
 ```{r}
 # Get data
@@ -25,12 +32,11 @@ exclude_factors = c("EmployeeCount",'Over18','StandardHours')
 cs2.data = cs2.data %>% dplyr::select(-all_of(exclude_factors))
 
 # Split data into sets of different data types 
+cs2.data <- cs2.data %>% mutate(AttNum = ifelse(Attrition == "No",0,1))
 cs2.numeric = cs2.data %>% dplyr::select(Age, DailyRate, DistanceFromHome, HourlyRate, MonthlyIncome, MonthlyRate, NumCompaniesWorked, PercentSalaryHike,
                                   TotalWorkingYears, TrainingTimesLastYear, YearsAtCompany, YearsInCurrentRole, YearsSinceLastPromotion,
-                                  YearsWithCurrManager)
+                                  YearsWithCurrManager,AttNum)
 
-cs2.yes = subset(cs2.data, Attrition == "Yes")
-cs2.no = subset(cs2.data, Attrition == "No")
 ```
 
 
@@ -53,9 +59,10 @@ summary(cs2.data)
 pairs(cs2.numeric)
 ```
 
+
+# Correlations of numeric variables and Numeric analog of response
 ```{r}
 # Nothing looks so highly correlated that we should want to get rid of it. 
-library(ggcorrplot)
 
 corr <- round(cor(cs2.numeric), 3)
 
@@ -66,73 +73,286 @@ ggcorrplot(corr, hc.order = TRUE, type = "lower",
            ggtheme = theme_bw())
 ```
 
+# Age Vs Everything (numeric)
 ```{r}
 # Adding in the response
-cs2.numeric = cbind(cs2.numeric, cs2.data$Attrition)
-names(cs2.numeric)[15] <- "Attrition"
 
 # Attrition Occurs younger invariate of rate
-cs2.numeric %>% ggplot(aes(x = Age, y = DailyRate, color = Attrition)) + geom_point()
+cs2.data %>% ggplot(aes(x = Age, y = DailyRate, color = Attrition)) + geom_point()
 
 # Seems Most workers lives within 10 miles - needs some follow up what percentages - Distance from home invariate with age
-cs2.numeric %>% ggplot(aes(x = Age, y = DistanceFromHome, color = Attrition)) + geom_point()
+cs2.data %>% ggplot(aes(x = Age, y = DistanceFromHome, color = Attrition)) + geom_point()
 
 # Attrition seems to occur younger no matter the rate
-cs2.numeric %>% ggplot(aes(x = Age, y = HourlyRate, color = Attrition)) + geom_point()
+cs2.data %>% ggplot(aes(x = Age, y = HourlyRate, color = Attrition)) + geom_point()
 
 # Possible further investigation
-cs2.numeric %>% ggplot(aes(x = Age, y = MonthlyIncome, color = Attrition)) + geom_point()
+cs2.data %>% ggplot(aes(x = Age, y = MonthlyIncome, color = Attrition)) + geom_point()
 
 # Eh
-cs2.numeric %>% ggplot(aes(x = Age, y = MonthlyRate, color = Attrition)) + geom_point()
+cs2.data %>% ggplot(aes(x = Age, y = MonthlyRate, color = Attrition)) + geom_point()
 
 # Further Investigation
-cs2.numeric %>% ggplot(aes(x = Age, y = NumCompaniesWorked, color = Attrition)) + geom_point()
+cs2.data %>% ggplot(aes(x = Age, y = NumCompaniesWorked, color = Attrition)) + geom_point()
 
 # Further Investigation
-cs2.numeric %>% ggplot(aes(x = Age, y = PercentSalaryHike, color = Attrition)) + geom_point()
+cs2.data %>% ggplot(aes(x = Age, y = PercentSalaryHike, color = Attrition)) + geom_point()
 
 # Further Investigation - 
-cs2.numeric %>% ggplot(aes(x = Age, y = TotalWorkingYears, color = Attrition)) + geom_point()
+cs2.data %>% ggplot(aes(x = Age, y = TotalWorkingYears, color = Attrition)) + geom_point()
 
 # eh
-cs2.numeric %>% ggplot(aes(x = Age, y = TrainingTimesLastYear, color = Attrition)) + geom_point()
+cs2.data %>% ggplot(aes(x = Age, y = TrainingTimesLastYear, color = Attrition)) + geom_point()
 
 # eh
-cs2.numeric %>% ggplot(aes(x = Age, y = YearsAtCompany, color = Attrition)) + geom_point()
+cs2.data %>% ggplot(aes(x = Age, y = YearsAtCompany, color = Attrition)) + geom_point()
 
 # 
-cs2.numeric %>% ggplot(aes(x = Age, y = YearsInCurrentRole, color = Attrition)) + geom_point()
-cs2.numeric %>% ggplot(aes(x = Age, y = YearsSinceLastPromotion, color = Attrition)) + geom_point()
+cs2.data %>% ggplot(aes(x = Age, y = YearsInCurrentRole, color = Attrition)) + geom_point()
+cs2.data %>% ggplot(aes(x = Age, y = YearsSinceLastPromotion, color = Attrition)) + geom_point()
 
-# pretty interesting here rgw zero line is quite telling looks like a majority of attrition happens within 1 year with a manager
-cs2.numeric %>% ggplot(aes(x = Age, y = YearsWithCurrManager, color = Attrition)) + geom_point()
+# pretty interesting here how zero line is quite telling looks like a majority of attrition happens within 1 year with a manager
+cs2.data %>% ggplot(aes(x = Age, y = YearsWithCurrManager, color = Attrition)) + geom_point()
 
-cs2.numeric %>% ggplot(aes(x = YearsWithCurrManager, fill = Attrition)) + geom_histogram(binwidth = 1) + 
-  aes(y = stat(count)/sum(stat(count))) + scale_y_continuous(labels = scales::percent) + facet_wrap(~cs2.numeric$Attrition)
+cs2.data %>% ggplot(aes(x = YearsWithCurrManager, fill = Attrition)) + geom_histogram(binwidth = 1) + 
+  aes(y = stat(count)/sum(stat(count))) + scale_y_continuous(labels = scales::percent) + facet_wrap(~Attrition)
 ```
 
+
+# Something interesting 1
 ```{r, warning = FALSE}
-cs2.yes %>% ggplot(aes(x = YearsWithCurrManager)) + geom_histogram(binwidth = 1, fill = "#00BFC4") + 
+cs2.data %>% filter(Attrition == "Yes") %>% ggplot(aes(x = YearsWithCurrManager)) + geom_histogram(binwidth = 1, fill = "#00BFC4") + 
   aes(y = stat(count)/sum(stat(count))) + scale_y_continuous(labels = scales::percent) + ylab("Percent Attrition") + xlab("Years With Current Manager") + 
   ggtitle("Distribution of Attrition by Years with Current Manager") + 
   geom_vline(xintercept = 3, color = "red", size = 1.5, linetype = "dashed") + 
   scale_x_continuous(breaks = sort(c(seq(0,20,5), 3)), limits = c(0,20), expand = c(0,0))
 
 # Of those who leave 40% do so before the end of the first year, 60% by year 3, and by year 7 90%
-cs2.yes %>% ggplot(aes(x = YearsWithCurrManager)) + stat_ecdf() + 
+cs2.data %>% filter(Attrition == "Yes") %>% ggplot(aes(x = YearsWithCurrManager)) + stat_ecdf() + 
   scale_y_continuous(breaks = seq(0,1,0.1)) + scale_x_continuous(breaks = seq(1,15,1)) +
   ggtitle("Cumulative Proportion of Attrition by Years with Current Manager") + ylab("Cumulative Proportion of Attrition") +
   xlab("Years With Current Manager")
 ```
-# Start of Sampling and Model Building For logits
-```{r}
-library(MASS)
-library(caret)
 
-# Create Train and Test sets ----
-## currently 90/10 Train/Test proportion of yes to no is 16 to 84
-#set.seed(35)
+
+# Stuff vs Daily Rate
+```{r}
+cs2.data %>% ggplot(aes(x = DailyRate, y = DistanceFromHome, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DailyRate, y = HourlyRate, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DailyRate, y = MonthlyIncome, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DailyRate, y = MonthlyRate, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DailyRate, y = NumCompaniesWorked, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DailyRate, y = PercentSalaryHike, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DailyRate, y = TotalWorkingYears, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DailyRate, y = TrainingTimesLastYear, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DailyRate, y = YearsAtCompany, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DailyRate, y = YearsInCurrentRole, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DailyRate, y = YearsSinceLastPromotion, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DailyRate, y = YearsWithCurrManager, color = Attrition)) + geom_point()
+
+```
+
+
+# Stuff vs Disatnce from home
+```{r}
+cs2.data %>% ggplot(aes(x = DistanceFromHome, y = HourlyRate , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DistanceFromHome, y = MonthlyIncome , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DistanceFromHome, y = MonthlyRate , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DistanceFromHome, y = NumCompaniesWorked , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DistanceFromHome, y = PercentSalaryHike, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DistanceFromHome, y = TotalWorkingYears, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DistanceFromHome, y = TrainingTimesLastYear, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DistanceFromHome, y = YearsAtCompany, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DistanceFromHome, y = YearsInCurrentRole, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DistanceFromHome, y = YearsSinceLastPromotion, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = DistanceFromHome, y = YearsWithCurrManager, color = Attrition)) + geom_point()
+```
+
+
+# Stuff vs Hourly Rate
+```{r}
+cs2.data %>% ggplot(aes(x = HourlyRate, y = MonthlyIncome, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = HourlyRate, y = MonthlyRate  , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = HourlyRate, y = NumCompaniesWorked , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = HourlyRate, y = PercentSalaryHike , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = HourlyRate, y = TotalWorkingYears , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = HourlyRate, y = TrainingTimesLastYear , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = HourlyRate, y = YearsAtCompany , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = HourlyRate, y =  YearsInCurrentRole, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = HourlyRate, y = YearsSinceLastPromotion , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = HourlyRate, y = YearsWithCurrManager , color = Attrition)) + geom_point()
+
+```
+
+
+# Stuff vs Monthly Income
+```{r}
+cs2.data %>% ggplot(aes(x = MonthlyIncome, y = MonthlyRate  , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = MonthlyIncome, y = NumCompaniesWorked , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = MonthlyIncome, y = PercentSalaryHike , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = MonthlyIncome, y = TotalWorkingYears , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = MonthlyIncome, y = TrainingTimesLastYear , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = MonthlyIncome, y = YearsAtCompany , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = MonthlyIncome, y =  YearsInCurrentRole, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = MonthlyIncome, y = YearsSinceLastPromotion , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = MonthlyIncome, y = YearsWithCurrManager , color = Attrition)) + geom_point()
+
+```
+
+
+# Monthly Rate
+```{r}
+cs2.data %>% ggplot(aes(x = MonthlyRate, y = NumCompaniesWorked , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = MonthlyRate, y = PercentSalaryHike , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = MonthlyRate, y = TotalWorkingYears , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = MonthlyRate, y = TrainingTimesLastYear , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = MonthlyRate, y = YearsAtCompany , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = MonthlyRate, y =  YearsInCurrentRole, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = MonthlyRate, y = YearsSinceLastPromotion , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = MonthlyRate, y = YearsWithCurrManager , color = Attrition)) + geom_point()
+```
+
+
+# NumCompaniesWorked
+```{r}
+cs2.data %>% ggplot(aes(x = NumCompaniesWorked, y = PercentSalaryHike , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = NumCompaniesWorked, y = TotalWorkingYears , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = NumCompaniesWorked, y = TrainingTimesLastYear , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = NumCompaniesWorked, y = YearsAtCompany , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = NumCompaniesWorked, y =  YearsInCurrentRole, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = NumCompaniesWorked, y = YearsSinceLastPromotion , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = NumCompaniesWorked, y = YearsWithCurrManager , color = Attrition)) + geom_point()
+```
+
+
+# Percent salary hike
+```{r}
+cs2.data %>% ggplot(aes(x = PercentSalaryHike, y = TotalWorkingYears , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = PercentSalaryHike, y = TrainingTimesLastYear , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = PercentSalaryHike, y = YearsAtCompany , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = PercentSalaryHike, y =  YearsInCurrentRole, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = PercentSalaryHike, y = YearsSinceLastPromotion , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = PercentSalaryHike, y = YearsWithCurrManager , color = Attrition)) + geom_point()
+```
+
+
+# TotalWorkingYears
+```{r}
+cs2.data %>% ggplot(aes(x = TotalWorkingYears, y = TrainingTimesLastYear , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = TotalWorkingYears, y = YearsAtCompany , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = TotalWorkingYears, y =  YearsInCurrentRole, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = TotalWorkingYears, y = YearsSinceLastPromotion , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = TotalWorkingYears, y = YearsWithCurrManager , color = Attrition)) + geom_point()
+```
+
+
+# Training Times Last Year
+```{r}
+cs2.data %>% ggplot(aes(x = TrainingTimesLastYear, y = YearsAtCompany , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = TrainingTimesLastYear, y =  YearsInCurrentRole, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = TrainingTimesLastYear, y = YearsSinceLastPromotion , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = TrainingTimesLastYear, y = YearsWithCurrManager , color = Attrition)) + geom_point()
+```
+
+
+# Years at Company
+```{r}
+cs2.data %>% ggplot(aes(x = YearsAtCompany, y =  YearsInCurrentRole, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = YearsAtCompany, y = YearsSinceLastPromotion , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = YearsAtCompany, y = YearsWithCurrManager , color = Attrition)) + geom_point()
+```
+
+
+# Years In Current Role
+```{r}
+cs2.data %>% ggplot(aes(x = YearsInCurrentRole, y = YearsSinceLastPromotion , color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = YearsInCurrentRole, y = YearsWithCurrManager , color = Attrition)) + geom_point()
+```
+
+
+# Years Since Last Promotion
+```{r}
+cs2.data %>% ggplot(aes(x = YearsSinceLastPromotion, y = YearsWithCurrManager , color = Attrition)) + geom_point()
+```
+
+
+
+# Start of KNN Models
+```{r}
+# Scaling numeric variables
+cs2.scale <- data.frame(scale(cs2.numeric[,-15]))
+cs2.scale$AttNum <- cs2.numeric$AttNum
+
+cs2.yes = subset(cs2.scale, AttNum == 1)
+cs2.no = subset(cs2.scale, AttNum == 0)
+
+set.seed(35)
 index.yes <- sample(1:dim(cs2.yes)[1],floor(0.9*dim(cs2.yes)),replace=F)
 train.yes <- cs2.yes[index.yes,]
 test.yes <- cs2.yes[-index.yes,]
@@ -141,46 +361,165 @@ index.no <- sample(1:dim(cs2.no)[1],floor(0.9*dim(cs2.no)),replace=F)
 train.no <- cs2.no[index.no,]
 test.no <- cs2.no[-index.no,]
 
-cs2.train <- rbind(train.no, train.yes)
-cs2.test <- rbind(test.no, test.yes)
+cs2.KNNTrain <- rbind(train.no, train.yes)
+cs2.KNNTest <- rbind(test.no, test.yes)
+
 
 # remove intermediate data sets
-rm(test.no, test.yes, train.no, train.yes)
+rm(test.no, test.yes, train.no, train.yes, cs2.yes, cs2.no)
+```
+
+```{r}
+#KNN1 -  Full
+# knn(train, test, factor of true classifications from train, k = , prob = TRUE)
+
+knnvector1 <- c(1,2,3,4,5,6,7,8,9,10,11,12,13,14)
+
+classifications = knn(cs2.KNNTrain[,knnvector1], cs2.KNNTest[, knnvector1], cs2.KNNTrain$AttNum, prob = TRUE, k = 2)
+table(classifications,cs2.KNNTest$AttNum)
+confusionMatrix(table(classifications,cs2.KNNTest$AttNum))
 
 ```
 
 ```{r}
-# Full Model
-mylogit.1 <- glm(Attrition ~ ., data = cs2.train, family = binomial)
+# KNN 2
+knnvector1 <- c(2,5,9,11)
+
+classifications = knn(cs2.KNNTrain[,knnvector1], cs2.KNNTest[, knnvector1], cs2.KNNTrain$AttNum, prob = TRUE, k = 3)
+table(classifications,cs2.KNNTest$AttNum)
+confusionMatrix(table(classifications,cs2.KNNTest$AttNum))
+```
+
+
+# Start of PCA
+```{r}
+cs2.PCs <- cs2.numeric[,-15]
+
+pc.result <- prcomp(cs2.PCs,scale. = TRUE)
+pc.scores <- pc.result$x
+
+#Looking At PC's
+pc.scores = data.frame(pc.scores)
+pc.scores$AttNum <- cs2.numeric$AttNum
+```
+
+```{r}
+# Scree Plot
+# Seems to suggest 8 Pcs
+par(mfrow=c(1,2))
+eigenvals<-(pc.result$sdev)^2
+plot(1:14,eigenvals/sum(eigenvals),type="l",main="Scree Plot",ylab="Prop. Var. Explained")
+cumulative.prop<-cumsum(eigenvals/sum(eigenvals))
+plot(1:14,cumulative.prop,type="l",main="Cumulative proportion",ylim=c(0,1))
+par(mfrow=c(1,1))
+```
+
+```{r}
+pc.scores %>% ggplot(aes(x = PC2, y = PC4, color = AttNum)) + geom_point()
+
+pc.scores %>% ggplot(aes(x = PC1, y = PC3, color = AttNum)) + geom_point()
+
+pc.scores %>% ggplot(aes(x = PC1, y = PC4, color = AttNum)) + geom_point()
+
+pc.scores %>% ggplot(aes(x = PC1, y = PC5, color = AttNum)) + geom_point()
+
+pc.scores %>% ggplot(aes(x = PC1, y = PC6, color = AttNum)) + geom_point()
+
+pc.scores %>% ggplot(aes(x = PC1, y = PC7, color = AttNum)) + geom_point()
+
+pc.scores %>% ggplot(aes(x = PC1, y = PC8, color = AttNum)) + geom_point()
+
+```
+
+```{r}
+# Create Train and Test sets ----
+## currently 90/10 Train/Test proportion of yes to no is 16 to 84
+cs2.yes <- subset(pc.scores, AttNum == 1)
+cs2.no <- subset(pc.scores, AttNum == 0)
+
+set.seed(35)
+index.yes <- sample(1:dim(cs2.yes)[1],floor(0.9*dim(cs2.yes)),replace=F)
+train.yes <- cs2.yes[index.yes,]
+test.yes <- cs2.yes[-index.yes,]
+
+index.no <- sample(1:dim(cs2.no)[1],floor(0.9*dim(cs2.no)),replace=F)
+train.no <- cs2.no[index.no,]
+test.no <- cs2.no[-index.no,]
+
+cs2.PCTrain <- rbind(train.no, train.yes)
+cs2.PCTest <- rbind(test.no, test.yes)
+
+# remove intermediate data sets
+rm(test.no, test.yes, train.no, train.yes, cs2.no, cs2.yes)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+# Start of Sampling and Model Building For logits
+```{r}
+# Create Train and Test sets ----
+## currently 90/10 Train/Test proportion of yes to no is 16 to 84
+cs2.yes <- subset(cs2.data, Attrition == "Yes")
+cs2.no <- subset(cs2.data, Attrition == "No")
+
+set.seed(35)
+index.yes <- sample(1:dim(cs2.yes)[1],floor(0.9*dim(cs2.yes)),replace=F)
+train.yes <- cs2.yes[index.yes,]
+test.yes <- cs2.yes[-index.yes,]
+
+index.no <- sample(1:dim(cs2.no)[1],floor(0.9*dim(cs2.no)),replace=F)
+train.no <- cs2.no[index.no,]
+test.no <- cs2.no[-index.no,]
+
+cs2.LogTrain <- rbind(train.no, train.yes)
+cs2.LogTest <- rbind(test.no, test.yes)
+
+# remove intermediate data sets
+rm(test.no, test.yes, train.no, train.yes, cs2.no, cs2.yes)
+
+```
+
+```{r}
+# Full Model -  Current Accuracy: 0.851, Sensitivity: 0.89, Specificity: 0.64
+mylogit.1 <- glm(Attrition ~ ., data = cs2.LogTrain, family = binomial)
 summary(mylogit.1)
 
 
 # Make predictions
-probabilities <- mylogit.1 %>% predict(cs2.test, type = "response")
+probabilities <- mylogit.1 %>% predict(cs2.LogTest, type = "response")
 predicted.classes <- ifelse(probabilities < 0.3, "No", "Yes")
 # Model accuracy
-mean(predicted.classes == cs2.test$Attrition)
+mean(predicted.classes == cs2.LogTest$Attrition)
 
 # Create table for conjfusion Matrix
-predTable <- tibble(Predicted = as.factor(predicted.classes), Observed = cs2.test$Attrition)
+predTable <- tibble(Predicted = as.factor(predicted.classes), Observed = cs2.LogTest$Attrition)
 
 #Confusion Matrix
 confusionMatrix(predTable$Predicted, reference = predTable$Observed)
 ```
 
 ```{r}
-# Step Selected Model
+# Step Selected Model -  Current Accuracy: 0.86, Sensitivity: 0.9, Specificity: 0.64
 step.model <- mylogit.1 %>% stepAIC(trace = FALSE)
 summary(step.model)
 
 # Make predictions
-probabilities <- step.model %>% predict(cs2.test, type = "response")
+probabilities <- step.model %>% predict(cs2.LogTest, type = "response")
 predicted.classes <- ifelse(probabilities < 0.3, "No", "Yes")
 # Model accuracy
-mean(predicted.classes == cs2.test$Attrition)
+mean(predicted.classes == cs2.LogTest$Attrition)
 
 # Create table for conjfusion Matrix
-predTable <- tibble(Predicted = as.factor(predicted.classes), Observed = cs2.test$Attrition)
+predTable <- tibble(Predicted = as.factor(predicted.classes), Observed = cs2.LogTest$Attrition)
 
 #Confusion Matrix
 confusionMatrix(predTable$Predicted, reference = predTable$Observed)
@@ -248,4 +587,48 @@ confusionMatrix(predTable$Predicted, reference = predTable$Observed)
 
 
 
+
+
+
+
+# LASSO REGRESSION - it works but its not super useful without significant changes to the data -  like changing all factors to numeric analogs...
+```{r}
+# Create Train and Test sets ----
+## currently 90/10 Train/Test proportion of yes to no is 16 to 84
+cs2.yes <- subset(cs2.numeric, AttNum == 1)
+cs2.no <- subset(cs2.numeric, AttNum == 0)
+
+set.seed(35)
+index.yes <- sample(1:dim(cs2.yes)[1],floor(0.9*dim(cs2.yes)),replace=F)
+train.yes <- cs2.yes[index.yes,]
+test.yes <- cs2.yes[-index.yes,]
+
+index.no <- sample(1:dim(cs2.no)[1],floor(0.9*dim(cs2.no)),replace=F)
+train.no <- cs2.no[index.no,]
+test.no <- cs2.no[-index.no,]
+
+cs2.LassoTrain <- rbind(train.no, train.yes)
+cs2.LassoTest <- rbind(test.no, test.yes)
+
+# remove intermediate data sets
+rm(test.no, test.yes, train.no, train.yes, cs2.no, cs2.yes)
+```
+
+```{r}
+CV = cv.glmnet(x = as.matrix(cs2.LassoTrain[,-15]), y = as.matrix(cs2.LassoTrain[,15]), 
+               family = "binomial", type.measure = "class", alpha = 1, nlambda = 1000)
+```
+
+```{r}
+plot(CV)
+```
+
+```{r}
+Fit1 = glmnet(x = as.matrix(cs2.LassoTrain[,-15]), y = as.matrix(cs2.LassoTrain[,15]), 
+               family = "binomial", type.measure = "class", alpha = 1, lambda = CV$lambda.min)
+```
+
+```{r}
+Fit1$beta[,1]
+```
 
