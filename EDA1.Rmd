@@ -1,0 +1,254 @@
+---
+title: "EDA1"
+author: "Adam Canton"
+date: "7/24/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(magrittr)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(naniar)
+library(GGally)
+
+```
+
+
+```{r}
+# Get data
+cs2.data <- read.csv(file = "F:/R For Real/DDS-Case-Study-2/CaseStudy2-data.csv", sep = ",", header = TRUE)
+
+exclude_factors = c("EmployeeCount",'Over18','StandardHours')
+cs2.data = cs2.data %>% dplyr::select(-all_of(exclude_factors))
+
+# Split data into sets of different data types 
+cs2.numeric = cs2.data %>% dplyr::select(Age, DailyRate, DistanceFromHome, HourlyRate, MonthlyIncome, MonthlyRate, NumCompaniesWorked, PercentSalaryHike,
+                                  TotalWorkingYears, TrainingTimesLastYear, YearsAtCompany, YearsInCurrentRole, YearsSinceLastPromotion,
+                                  YearsWithCurrManager)
+
+cs2.yes = subset(cs2.data, Attrition == "Yes")
+cs2.no = subset(cs2.data, Attrition == "No")
+```
+
+
+```{r}
+# No Apparent NA Values, need to check for other NA identifiers
+gg_miss_var(cs2.data)
+
+na_count <- sapply(cs2.data, function(y) sum(length(which(is.na(y)))))
+na_count <- data.frame(na_count)
+na_count
+```
+
+```{r}
+str(cs2.data)
+summary(cs2.data)
+```
+
+```{r}
+# trying to take a look at collinearity
+pairs(cs2.numeric)
+```
+
+```{r}
+# Nothing looks so highly correlated that we should want to get rid of it. 
+library(ggcorrplot)
+
+corr <- round(cor(cs2.numeric), 3)
+
+ggcorrplot(corr, hc.order = TRUE, type = "lower",
+           lab = TRUE, lab_size = 3, method = "circle",
+           colors = c("tomato2", "white", "springgreen3"),
+           title = "Correlations of Selected Variables",
+           ggtheme = theme_bw())
+```
+
+```{r}
+# Adding in the response
+cs2.numeric = cbind(cs2.numeric, cs2.data$Attrition)
+names(cs2.numeric)[15] <- "Attrition"
+
+# Attrition Occurs younger invariate of rate
+cs2.numeric %>% ggplot(aes(x = Age, y = DailyRate, color = Attrition)) + geom_point()
+
+# Seems Most workers lives within 10 miles - needs some follow up what percentages - Distance from home invariate with age
+cs2.numeric %>% ggplot(aes(x = Age, y = DistanceFromHome, color = Attrition)) + geom_point()
+
+# Attrition seems to occur younger no matter the rate
+cs2.numeric %>% ggplot(aes(x = Age, y = HourlyRate, color = Attrition)) + geom_point()
+
+# Possible further investigation
+cs2.numeric %>% ggplot(aes(x = Age, y = MonthlyIncome, color = Attrition)) + geom_point()
+
+# Eh
+cs2.numeric %>% ggplot(aes(x = Age, y = MonthlyRate, color = Attrition)) + geom_point()
+
+# Further Investigation
+cs2.numeric %>% ggplot(aes(x = Age, y = NumCompaniesWorked, color = Attrition)) + geom_point()
+
+# Further Investigation
+cs2.numeric %>% ggplot(aes(x = Age, y = PercentSalaryHike, color = Attrition)) + geom_point()
+
+# Further Investigation - 
+cs2.numeric %>% ggplot(aes(x = Age, y = TotalWorkingYears, color = Attrition)) + geom_point()
+
+# eh
+cs2.numeric %>% ggplot(aes(x = Age, y = TrainingTimesLastYear, color = Attrition)) + geom_point()
+
+# eh
+cs2.numeric %>% ggplot(aes(x = Age, y = YearsAtCompany, color = Attrition)) + geom_point()
+
+# 
+cs2.numeric %>% ggplot(aes(x = Age, y = YearsInCurrentRole, color = Attrition)) + geom_point()
+cs2.numeric %>% ggplot(aes(x = Age, y = YearsSinceLastPromotion, color = Attrition)) + geom_point()
+
+# pretty interesting here rgw zero line is quite telling looks like a majority of attrition happens within 1 year with a manager
+cs2.numeric %>% ggplot(aes(x = Age, y = YearsWithCurrManager, color = Attrition)) + geom_point()
+
+cs2.numeric %>% ggplot(aes(x = YearsWithCurrManager, fill = Attrition)) + geom_histogram(binwidth = 1) + 
+  aes(y = stat(count)/sum(stat(count))) + scale_y_continuous(labels = scales::percent) + facet_wrap(~cs2.numeric$Attrition)
+```
+
+```{r, warning = FALSE}
+cs2.yes %>% ggplot(aes(x = YearsWithCurrManager)) + geom_histogram(binwidth = 1, fill = "#00BFC4") + 
+  aes(y = stat(count)/sum(stat(count))) + scale_y_continuous(labels = scales::percent) + ylab("Percent Attrition") + xlab("Years With Current Manager") + 
+  ggtitle("Distribution of Attrition by Years with Current Manager") + 
+  geom_vline(xintercept = 3, color = "red", size = 1.5, linetype = "dashed") + 
+  scale_x_continuous(breaks = sort(c(seq(0,20,5), 3)), limits = c(0,20), expand = c(0,0))
+
+# Of those who leave 40% do so before the end of the first year, 60% by year 3, and by year 7 90%
+cs2.yes %>% ggplot(aes(x = YearsWithCurrManager)) + stat_ecdf() + 
+  scale_y_continuous(breaks = seq(0,1,0.1)) + scale_x_continuous(breaks = seq(1,15,1)) +
+  ggtitle("Cumulative Proportion of Attrition by Years with Current Manager") + ylab("Cumulative Proportion of Attrition") +
+  xlab("Years With Current Manager")
+```
+# Start of Sampling and Model Building For logits
+```{r}
+library(MASS)
+library(caret)
+
+# Create Train and Test sets ----
+## currently 90/10 Train/Test proportion of yes to no is 16 to 84
+set.seed(35)
+index.yes <- sample(1:dim(cs2.yes)[1],floor(0.9*dim(cs2.yes)),replace=F)
+train.yes <- cs2.yes[index.yes,]
+test.yes <- cs2.yes[-index.yes,]
+
+index.no <- sample(1:dim(cs2.no)[1],floor(0.9*dim(cs2.no)),replace=F)
+train.no <- cs2.no[index.no,]
+test.no <- cs2.no[-index.no,]
+
+cs2.train <- rbind(train.no, train.yes)
+cs2.test <- rbind(test.no, test.yes)
+
+# Getting rid of duration  - it will predict nearly perfectly - with this in mean prediction error = 0
+# Also have to get rid of ID since it was being selected as good explanatory variable
+#BankAF.train = BankAF.train %>% dplyr::select(-c(duration, ID))
+#BankAF.test = BankAF.test %>% dplyr::select(-c(duration, ID))
+
+# remove intermediate data sets
+rm(test.no, test.yes, train.no, train.yes)
+
+
+```
+
+```{r}
+# Full Model
+mylogit.1 <- glm(Attrition ~ ., data = cs2.train, family = binomial)
+summary(mylogit.1)
+
+
+# Make predictions
+probabilities <- mylogit.1 %>% predict(cs2.test, type = "response")
+predicted.classes <- ifelse(probabilities < 0.5, "No", "Yes")
+# Model accuracy
+mean(predicted.classes == cs2.test$Attrition)
+
+# Create table for conjfusion Matrix
+predTable <- tibble(Predicted = as.factor(predicted.classes), Observed = cs2.test$Attrition)
+
+#Confusion Matrix
+confusionMatrix(predTable$Predicted, reference = predTable$Observed)
+```
+
+```{r}
+# Step Selected Model
+step.model <- mylogit.1 %>% stepAIC(trace = FALSE)
+summary(step.model)
+
+# Make predictions
+probabilities <- step.model %>% predict(cs2.test, type = "response")
+predicted.classes <- ifelse(probabilities < 0.21, "No", "Yes")
+# Model accuracy
+mean(predicted.classes == cs2.test$Attrition)
+
+# Create table for conjfusion Matrix
+predTable <- tibble(Predicted = as.factor(predicted.classes), Observed = cs2.test$Attrition)
+
+#Confusion Matrix
+confusionMatrix(predTable$Predicted, reference = predTable$Observed)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
