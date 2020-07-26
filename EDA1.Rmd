@@ -476,12 +476,15 @@ index.yes <- sample(1:dim(cs2.yes)[1],floor(0.9*dim(cs2.yes)),replace=F)
 train.yes <- cs2.yes[index.yes,]
 test.yes <- cs2.yes[-index.yes,]
 
-index.no <- sample(1:dim(cs2.no)[1],floor(0.9*dim(cs2.no)),replace=F)
+index.no <- sample(1:dim(cs2.no)[1],floor(0.5*dim(cs2.no)),replace=F)
 train.no <- cs2.no[index.no,]
 test.no <- cs2.no[-index.no,]
 
 cs2.LogTrain <- rbind(train.no, train.yes)
 cs2.LogTest <- rbind(test.no, test.yes)
+
+cs2.LogTrain <- cs2.LogTrain[,-34]
+cs2.LogTest <- cs2.LogTest[,-34]
 
 # remove intermediate data sets
 rm(test.no, test.yes, train.no, train.yes, cs2.no, cs2.yes)
@@ -526,11 +529,36 @@ confusionMatrix(predTable$Predicted, reference = predTable$Observed)
 ```
 
 ```{r}
+custom.logit <- glm(Attrition ~ WorkLifeBalance + MonthlyIncome + TotalWorkingYears, data = cs2.LogTrain, family = "binomial")
 
+summary(custom.logit)
+
+# Make predictions
+probabilities <- custom.logit %>% predict(cs2.LogTest, type = "response")
+predicted.classes <- ifelse(probabilities < 0.28, "No", "Yes")
+# Model accuracy
+mean(predicted.classes == cs2.LogTest$Attrition)
+summary(probabilities)
+# Create table for conjfusion Matrix
+predTable <- tibble(Predicted = as.factor(predicted.classes), Observed = cs2.LogTest$Attrition)
+
+#Confusion Matrix
+confusionMatrix(predTable$Predicted, reference = predTable$Observed)
 ```
 
+```{r}
+letslook <- data.frame(Prob = probabilities, Pred = predicted.classes, Observed = cs2.LogTest$Attrition)
+letslook
+```
+
+```{r}
+cs2.data = cs2.data[,c(1,3,2,4:33)]
+```
+
+```{r}
 
 
+```
 
 
 
@@ -631,4 +659,15 @@ Fit1 = glmnet(x = as.matrix(cs2.LassoTrain[,-15]), y = as.matrix(cs2.LassoTrain[
 ```{r}
 Fit1$beta[,1]
 ```
+
+
+
+```{r}
+linearmodel.full <- 
+```
+
+
+
+
+
 
