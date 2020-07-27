@@ -1,0 +1,190 @@
+---
+title: "EDA2"
+author: "Adam Canton"
+date: "7/27/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(magrittr)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(naniar)
+library(GGally)
+library(e1071)
+library(class)
+library(caret)
+library(MASS)
+library(caret)
+library(ggcorrplot)
+library(Lahman)
+library(olsrr)
+library(glmnet)
+
+```
+
+```{r}
+# Get data
+cs2.data <- read.csv(file = "F:/R For Real/DDS-Case-Study-2/CaseStudy2-data.csv", sep = ",", header = TRUE)
+
+exclude_factors = c("EmployeeCount",'Over18','StandardHours')
+cs2.data = cs2.data %>% dplyr::select(-all_of(exclude_factors))
+```
+
+```{r}
+str(cs2.data)
+```
+
+```{r}
+# Boxplots should be able to show what effect each variable has on showing a difference between attrition.
+
+# Leavers are generally younger
+cs2.data %>% ggplot(aes(x = Age, fill = Attrition)) + geom_boxplot() + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + 
+  facet_wrap(facets = cs2.data$Attrition) + xlab("Age") + coord_flip()
+
+# Leavers have a slightly lower daily rate - may not be significant
+cs2.data %>% ggplot(aes(x = DailyRate, fill = Attrition)) + geom_boxplot() + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + 
+  facet_wrap(facets = cs2.data$Attrition) + xlab("Daily Rate") + coord_flip()
+
+# Distance from home seems to play a role
+cs2.data %>% ggplot(aes(x = DistanceFromHome, fill = Attrition)) + geom_boxplot() + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + 
+  facet_wrap(facets = cs2.data$Attrition) + xlab("Distance From Home") + coord_flip()
+
+# No Difference
+cs2.data %>% ggplot(aes(x = Education, fill = Attrition)) + geom_boxplot() + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + 
+  facet_wrap(facets = cs2.data$Attrition) + xlab("Education") + coord_flip()
+
+# No difference
+cs2.data %>% ggplot(aes(x = EmployeeNumber, fill = Attrition)) + geom_boxplot() + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + 
+  facet_wrap(facets = cs2.data$Attrition) + xlab("Employee Num") + coord_flip()
+
+# Leavers have a slightly higher median rate
+cs2.data %>% ggplot(aes(x = HourlyRate, fill = Attrition)) + geom_boxplot() + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + 
+  facet_wrap(facets = cs2.data$Attrition) + xlab("Hourly Rate") + coord_flip()
+
+# Leavers have lower monthly incomes
+cs2.data %>% ggplot(aes(x = MonthlyIncome, fill = Attrition)) + geom_boxplot() + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + 
+  facet_wrap(facets = cs2.data$Attrition) + xlab("Monthly Income") + coord_flip()
+
+# Not much difference
+cs2.data %>% ggplot(aes(x = MonthlyRate, fill = Attrition)) + geom_boxplot() + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + 
+  facet_wrap(facets = cs2.data$Attrition) + xlab("Monhtly Rate") + coord_flip()
+
+# identical
+cs2.data %>% ggplot(aes(x = PercentSalaryHike, fill = Attrition)) + geom_boxplot() + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + 
+  facet_wrap(facets = cs2.data$Attrition) + xlab("Percent Hike") + coord_flip()
+
+# Leavers have less total years
+cs2.data %>% ggplot(aes(x = TotalWorkingYears, fill = Attrition)) + geom_boxplot() + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + 
+  facet_wrap(facets = cs2.data$Attrition) + xlab("Total Working") + coord_flip()
+
+# Leavers have less years at company
+cs2.data %>% ggplot(aes(x = YearsAtCompany, fill = Attrition)) + geom_boxplot() + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + 
+  facet_wrap(facets = cs2.data$Attrition) + xlab("years At") + coord_flip()
+
+# Leavers have less years in role
+cs2.data %>% ggplot(aes(x = YearsInCurrentRole, fill = Attrition)) + geom_boxplot() + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + 
+  facet_wrap(facets = cs2.data$Attrition) + xlab("time in Role") + coord_flip()
+
+# no difference
+cs2.data %>% ggplot(aes(x = YearsSinceLastPromotion, fill = Attrition)) + geom_boxplot() + 
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + 
+  facet_wrap(facets = cs2.data$Attrition) + xlab("Promotion") + coord_flip()
+
+# leavers have slightly less time with manager
+cs2.data %>% ggplot(aes(x = YearsWithCurrManager, fill = Attrition)) + geom_boxplot() + 
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + 
+  facet_wrap(facets = cs2.data$Attrition) + xlab("Years With Manager") + coord_flip()
+
+```
+
+
+```{r}
+cs2.data %>% group_by(BusinessTravel, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+  ggplot(aes(x = BusinessTravel, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+
+
+cs2.data %>% group_by(Department, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+  ggplot(aes(x = Department, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+
+
+cs2.data %>% group_by(Education, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+  ggplot(aes(x = Education, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+
+
+cs2.data %>% group_by(EducationField, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+  ggplot(aes(x = EducationField, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+
+
+cs2.data %>% group_by(EnvironmentSatisfaction, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+  ggplot(aes(x = EnvironmentSatisfaction, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+
+
+cs2.data %>% group_by(Gender, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+  ggplot(aes(x = Gender, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+
+
+cs2.data %>% group_by(JobInvolvement, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+  ggplot(aes(x = JobInvolvement, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+
+
+cs2.data %>% group_by(JobLevel, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+  ggplot(aes(x = JobLevel, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+
+
+cs2.data %>% group_by(JobRole, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+  ggplot(aes(x = JobRole, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+
+
+cs2.data %>% group_by(MaritalStatus, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+  ggplot(aes(x = MaritalStatus, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+
+
+cs2.data %>% group_by(JobSatisfaction, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+  ggplot(aes(x = JobSatisfaction, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+
+
+cs2.data %>% group_by(NumCompaniesWorked, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+  ggplot(aes(x = NumCompaniesWorked, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+
+
+cs2.data %>% group_by(OverTime, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+  ggplot(aes(x = OverTime, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+
+
+cs2.data %>% group_by(PerformanceRating, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+  ggplot(aes(x = PerformanceRating, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+
+
+cs2.data %>% group_by(RelationshipSatisfaction, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+  ggplot(aes(x = RelationshipSatisfaction, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+
+
+cs2.data %>% group_by(StockOptionLevel, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+  ggplot(aes(x = StockOptionLevel, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+
+
+cs2.data %>% group_by(WorkLifeBalance, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+  ggplot(aes(x = WorkLifeBalance, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+
+```
+
