@@ -23,7 +23,10 @@ library(Lahman)
 library(olsrr)
 library(glmnet)
 library(cowplot)
-
+library(gridExtra)
+library(car)
+library(matrixStats)
+library(reshape2)
 ```
 
 ```{r}
@@ -78,11 +81,10 @@ g6 = cs2.data %>% ggplot(aes(x = EnvironmentSatisfaction, y = MonthlyIncome, gro
 g7 = cs2.data %>% ggplot(aes(x = JobInvolvement, y = MonthlyIncome, group = JobInvolvement)) + geom_boxplot()
 
 
-g8 = cs2.data %>% ggplot(aes(x = JobLevel, y = MonthlyIncome, group = JobLevel)) + geom_boxplot()
+g8 = cs2.data %>% ggplot(aes(x = JobLevel, y = MonthlyIncome, group = JobLevel)) + geom_boxplot() + theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
-
-g9 = cs2.data %>% ggplot(aes(x = JobRole, y = MonthlyIncome)) + geom_boxplot() + theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
-
+g9 = cs2.data %>% ggplot(aes(x = JobRole, y = MonthlyIncome)) + geom_boxplot() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1)) + theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
 g10 = cs2.data %>% ggplot(aes(x = JobSatisfaction, y = MonthlyIncome, group = JobSatisfaction)) + geom_boxplot()
 
@@ -111,16 +113,197 @@ g17 = cs2.data %>% ggplot(aes(x = TrainingTimesLastYear, y = MonthlyIncome, grou
 g18 = cs2.data %>% ggplot(aes(x = WorkLifeBalance, y = MonthlyIncome, group = WorkLifeBalance)) + geom_boxplot()
 
 
-plot_grid(g1, g2, g3, g4, g5, g6, nrow = 2, ncol = 3)
 
-plot_grid(g7, g8, g9, g10, g11, g12,nrow = 2, ncol = 3, rel_widths = )
+plot_grid(g3, g4, g6,g7,g10, g11, nrow = 2, ncol = 3)
 
-plot_grid(g13, g14, g15, g16, g17,g18,nrow = 2, ncol = 3)
+plot_grid(g13, g14, g15,g16, g17,g18, nrow = 2, ncol = 3)
+
+
 ```
 
 
 ```{r}
+# Interesting
+g1
+g2
+g5
+g8
+g9
+g12
+```
 
+```{r}
+# Set training and test sets 70/30
+set.seed(35)
+index <- sample(1:dim(cs2.data)[1],floor(0.7*dim(cs2.data)),replace=F)
+train.mi <- cs2.data[index,]
+test.mi <- cs2.data[-index,]
+```
+
+
+```{r}
+# this has supprisingly good fit stats, weirdly grouped residuals though
+Model.FullMI1 <- lm(MonthlyIncome ~ ., data = cs2.data[,-c(1,34)])
+vif(Model.FullMI1)
+summary(Model.FullMI1)
+ols_plot_resid_fit(Model.FullMI1)
+ols_plot_resid_lev(Model.FullMI1)
+ols_plot_resid_qq(Model.FullMI1)
+ols_plot_resid_hist(Model.FullMI1)
+ols_plot_cooksd_bar(Model.FullMI1)
+```
+```{r}
+cs2.reduced <- cs2.data %>% dplyr::select(JobLevel, JobRole, TotalWorkingYears, YearsWithCurrManager, YearsSinceLastPromotion,
+                                          BusinessTravel, MonthlyRate,Gender, MonthlyIncome)
+
+Model.Reduced <- lm(MonthlyIncome ~ (.)^2, data = cs2.reduced )
+```
+
+```{r}
+#ols_step_both_p(Model.FullMI1)
+ols_step_all_possible(Model.Reduced)
+```
+
+```{r}
+ols_plot_added_variable(Model.MIStep)
+```
+
+```{r}
+Model.MIStep = lm(MonthlyIncome ~ JobLevel + JobRole + TotalWorkingYears + BusinessTravel + Gender + DailyRate + MonthlyRate + 
+                    YearsWithCurrManager + YearsSinceLastPromotion + DistanceFromHome + EmployeeNumber, data = cs2.data[,-34])
+vif(Model.MIStep)
+summary(Model.MIStep)
+ols_plot_resid_fit(Model.MIStep)
+ols_plot_resid_lev(Model.MIStep)
+ols_plot_resid_qq(Model.MIStep)
+ols_plot_resid_hist(Model.MIStep)
+ols_plot_cooksd_bar(Model.MIStep)
+```
+
+```{r}
+Model.MIMin <- lm(MonthlyIncome ~ JobLevel + JobRole + TotalWorkingYears, data = cs2.data[,-34])
+vif(Model.MIMin)
+summary(Model.MIMin)
+ols_plot_resid_fit(Model.MIMin)
+ols_plot_resid_lev(Model.MIMin)
+ols_plot_resid_qq(Model.MIMin)
+ols_plot_resid_hist(Model.MIMin)
+ols_plot_cooksd_bar(Model.MIMin)
+```
+
+
+```{r}
+# Crazy Model
+Model.MICrazy <- lm(MonthlyIncome ~ ,data = cs2.data[,-c(1,34)])
+```
+
+```{r, warning=FALSE}
+# Set number of times you would like to repeat the sampling/testing 
+iterations = 1:1000
+
+rmseStep = c()
+rmseFull = c()
+rmseMin = c()
+rmseCrazy = c()
+
+# Start of Loop
+for(i in iterations){
+  # Resets sample every iteration 
+  #set.seed(i)
+  index <- sample(1:dim(cs2.data)[1],floor(0.7*dim(cs2.data)),replace=F)
+  train.mi <- cs2.data[index,]
+  test.mi <- cs2.data[-index,]
+  
+
+  # the model runs 
+   
+  Model.MIStep = lm(MonthlyIncome ~ JobLevel + JobRole + TotalWorkingYears + BusinessTravel + Gender + DailyRate + MonthlyRate + 
+                    YearsWithCurrManager + YearsSinceLastPromotion + DistanceFromHome + EmployeeNumber, data = train.mi[,-c(1,34)])
+  
+  Model.FullMI1 <- lm(MonthlyIncome ~ ., data = train.mi[,-c(1,34)])
+  
+  Model.MIMin <- lm(MonthlyIncome ~ JobLevel + JobRole + TotalWorkingYears, data = train.mi[,-c(1,34)])
+  
+  # predictors and column building
+  # Model 1 - Step
+  predictions1 <- Model.MIStep %>% predict(test.mi)
+  
+  d1 = data.frame(R2 = R2(predictions1,test.mi$MonthlyIncome),
+                  RMSE = RMSE(predictions1,test.mi$MonthlyIncome), MAE = MAE(predictions1, test.mi$MonthlyIncome))
+  rmseStep = c(rmseStep,d1$RMSE)
+  
+  # Model 2 - Full
+  predictions2 <- Model.FullMI1 %>% predict(test.mi)
+
+    d2 = data.frame(R2 = R2(predictions2,test.mi$MonthlyIncome),
+                RMSE = RMSE(predictions2,test.mi$MonthlyIncome), MAE = MAE(predictions2, test.mi$MonthlyIncome))
+  rmseFull = c(rmseFull, d2$RMSE)
+  
+  # Model 3 - MIN 
+  predictions3 <- Model.MIMin %>% predict(test.mi)
+  
+  d3= data.frame(R2 = R2(predictions3,test.mi$MonthlyIncome),
+                RMSE = RMSE(predictions3,test.mi$MonthlyIncome), MAE = MAE(predictions3, test.mi$MonthlyIncome))
+  rmseMin = c(rmseMin, d3$RMSE)
+  
+   
+ 
+  
+  
+} # End for
+# putting the dataframe together and outputting relevant statistics
+Model.Average.RMSE = cbind(rmseStep, rmseFull, rmseMin)
+rmsedf = as.data.frame(Model.Average.RMSE)
+Means = colMeans(Model.Average.RMSE)
+SDs = round(colSds(Model.Average.RMSE), 3)
+range1 = max(rmsedf$rmseStep) - min(rmsedf$rmseStep)
+range2 = max(rmsedf$rmseFull) - min(rmsedf$rmseFull)
+range3 = max(rmsedf$rmseMin) - min(rmsedf$rmseMin)
+rmsedf1 = melt(rmsedf,rmse = c("n", "rmse"))
+
+# Looking at descriptive stats
+Means
+print("Standard Devs")
+SDs
+print("ranges - measure of variance between train/test shuffles")
+print(paste("Model Step Range" , round(range1, 3)))
+print(paste("Model Full Range" , round(range2, 3)))
+print(paste("Model Min Range" , round(range3, 3)))
+cat("Summary: 
+    ")
+summary(Model.Average.RMSE)
+
+# Scatter
+Pred1 <- data.frame(Value = predictions1, Model = "Step")
+Pred2 <- data.frame(Value = predictions2, Model = "Full")
+Pred3 <- data.frame(Value = predictions3, Model = "Min")
+PredActual <- data.frame(ActualValue = test.mi$MonthlyIncome)
+PredAll <- rbind(Pred1, Pred2, Pred3)
+PredActual <- rbind(PredActual,PredActual, PredActual)
+PredAll <- cbind(PredAll, PredActual)
+PredAll %>% ggplot(aes(x = Value, y = ActualValue, fill = Model)) + geom_point(aes(color = Model)) + geom_smooth(method = "lm")+
+  facet_wrap(facets = PredAll$Model) + ggtitle("Scatter Plot of Models") + xlab("Predicted") + ylab("Observed")
+
+# Column
+rmsedf1 %>% group_by(variable) %>% summarise(mean = (mean(value))) %>% 
+  ggplot(aes(x = reorder(variable, -mean), y = mean, fill = variable)) + geom_col(width = 0.75) + geom_text(aes(label = round(mean,3), vjust = -0.5)) + 
+  ggtitle(sprintf("Average RMSE over %s Shuffles (Linear Models)", max(iterations))) + xlab("Model #") + ylab("Mean RMSE")
+
+# Boxplot
+f1 = rmsedf1 %>%  ggplot(aes(x = variable, y = value)) + geom_boxplot(aes(fill = variable)) + facet_wrap(~variable,ncol = TRUE) +
+  ggtitle("Mean RMSE Distribution by Model") + ylab("Mean RMSE") + coord_flip() + 
+  theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank())
+# Histogram
+f2 = rmsedf1 %>%  ggplot(aes(x = value)) + geom_histogram(aes(fill = variable)) + facet_wrap(~variable,ncol = TRUE) +
+  ggtitle("Mean RMSE Distribution by Model") + xlab("Mean RMSE") + 
+  theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank())
+
+f1
+f2
+# Here we can see there is no significant difference between the models in terms of RMSE
+t.test(rmseStep,rmseFull, paired = TRUE, conf.level = 0.99)
+t.test(rmseMin,rmseFull, paired = TRUE, conf.level = 0.99)
+t.test(rmseStep,rmseMin, paired = TRUE, conf.level = 0.99)
 ```
 
 
