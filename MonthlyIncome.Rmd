@@ -1,0 +1,126 @@
+---
+title: "Monthly Income"
+author: "Adam Canton"
+date: "7/27/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(magrittr)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(naniar)
+library(GGally)
+library(e1071)
+library(class)
+library(caret)
+library(MASS)
+library(caret)
+library(ggcorrplot)
+library(Lahman)
+library(olsrr)
+library(glmnet)
+library(cowplot)
+
+```
+
+```{r}
+# Get data
+cs2.data <- read.csv(file = "F:/R For Real/DDS-Case-Study-2/CaseStudy2-data.csv", sep = ",", header = TRUE)
+
+exclude_factors = c("EmployeeCount",'Over18','StandardHours')
+cs2.data = cs2.data %>% dplyr::select(-all_of(exclude_factors))
+
+# Split data into sets of different data types 
+cs2.data <- cs2.data %>% mutate(AttNum = ifelse(Attrition == "No",0,1))
+
+# Numeric Variables only - and numeric analog to response
+cs2.numeric = cs2.data %>% dplyr::select(Age, DailyRate, DistanceFromHome, HourlyRate, MonthlyIncome, MonthlyRate, NumCompaniesWorked, PercentSalaryHike,
+                                  TotalWorkingYears, TrainingTimesLastYear, YearsAtCompany, YearsInCurrentRole, YearsSinceLastPromotion,
+                                  YearsWithCurrManager,AttNum)
+```
+
+```{r}
+corr <- round(cor(cs2.numeric), 3)
+
+ggcorrplot(corr, hc.order = TRUE, type = "lower",
+           lab = TRUE, lab_size = 3, method = "circle",
+           colors = c("tomato2", "white", "springgreen3"),
+           title = "Correlations of Selected Variables",
+           ggtheme = theme_bw())
+
+```
+
+```{r}
+
+# Need to work on the grid plots
+
+g1 = cs2.data %>% ggplot(aes(x = Education, y =  MonthlyIncome, group = Education)) + geom_boxplot()
+
+
+g2 = cs2.data %>% ggplot(aes(x = EducationField, y = MonthlyIncome)) + geom_boxplot()
+
+
+g3 = cs2.data %>% ggplot(aes(x = BusinessTravel, y = MonthlyIncome)) + geom_boxplot()
+
+
+g4 = cs2.data %>% ggplot(aes(x = Gender, y = MonthlyIncome)) + geom_boxplot()
+
+
+g5 = cs2.data %>% ggplot(aes(x = Department, y = MonthlyIncome)) + geom_boxplot()
+
+
+g6 = cs2.data %>% ggplot(aes(x = EnvironmentSatisfaction, y = MonthlyIncome, group = EnvironmentSatisfaction)) + geom_boxplot()
+
+
+g7 = cs2.data %>% ggplot(aes(x = JobInvolvement, y = MonthlyIncome, group = JobInvolvement)) + geom_boxplot()
+
+
+g8 = cs2.data %>% ggplot(aes(x = JobLevel, y = MonthlyIncome, group = JobLevel)) + geom_boxplot()
+
+
+g9 = cs2.data %>% ggplot(aes(x = JobRole, y = MonthlyIncome)) + geom_boxplot() + theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+
+
+g10 = cs2.data %>% ggplot(aes(x = JobSatisfaction, y = MonthlyIncome, group = JobSatisfaction)) + geom_boxplot()
+
+
+g11 = cs2.data %>% ggplot(aes(x = MaritalStatus, y = MonthlyIncome)) + geom_boxplot()
+
+
+g12 = cs2.data %>% ggplot(aes(x = NumCompaniesWorked, y = MonthlyIncome, group = NumCompaniesWorked)) + geom_boxplot()
+
+
+g13 = cs2.data %>% ggplot(aes(x = OverTime, y = MonthlyIncome)) + geom_boxplot()
+
+
+g14 = cs2.data %>% ggplot(aes(x = PerformanceRating, y = MonthlyIncome, group = PerformanceRating)) + geom_boxplot()
+
+
+g15 = cs2.data %>% ggplot(aes(x = RelationshipSatisfaction, y = MonthlyIncome, group = RelationshipSatisfaction)) + geom_boxplot()
+
+
+g16 = cs2.data %>% ggplot(aes(x = StockOptionLevel, y = MonthlyIncome, group = StockOptionLevel)) + geom_boxplot()
+
+
+g17 = cs2.data %>% ggplot(aes(x = TrainingTimesLastYear, y = MonthlyIncome, group = TrainingTimesLastYear)) + geom_boxplot()
+
+
+g18 = cs2.data %>% ggplot(aes(x = WorkLifeBalance, y = MonthlyIncome, group = WorkLifeBalance)) + geom_boxplot()
+
+
+plot_grid(g1, g2, g3, g4, g5, g6, nrow = 2, ncol = 3)
+
+plot_grid(g7, g8, g9, g10, g11, g12,nrow = 2, ncol = 3, rel_widths = )
+
+plot_grid(g13, g14, g15, g16, g17,g18,nrow = 2, ncol = 3)
+```
+
+
+```{r}
+
+```
+
+
