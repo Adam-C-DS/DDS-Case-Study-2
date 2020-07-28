@@ -183,8 +183,9 @@ cs2.data %>% group_by(StockOptionLevel, Attrition) %>% summarise(count = n()) %>
 
 
 cs2.data %>% group_by(WorkLifeBalance, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
-  ggplot(aes(x = WorkLifeBalance, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+  ggplot(aes(x = WorkLifeBalance, y = Perc, fill = Attrition, group = WorkLifeBalance)) + geom_bar(stat = "identity") + 
   theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+
 
 ```
 
