@@ -153,8 +153,7 @@ ols_plot_resid_hist(Model.FullMI1)
 ols_plot_cooksd_bar(Model.FullMI1)
 ```
 ```{r}
-cs2.reduced <- cs2.data %>% dplyr::select(JobLevel, JobRole, TotalWorkingYears, YearsWithCurrManager, YearsSinceLastPromotion,
-                                          BusinessTravel, MonthlyRate,Gender, MonthlyIncome)
+cs2.reduced <- cs2.data %>% dplyr::select(JobLevel, JobRole, TotalWorkingYears, MonthlyIncome,StockOptionLevel)
 
 Model.Reduced <- lm(MonthlyIncome ~ (.)^2, data = cs2.reduced )
 ```
@@ -181,7 +180,7 @@ ols_plot_cooksd_bar(Model.MIStep)
 ```
 
 ```{r}
-Model.MIMin <- lm(MonthlyIncome ~ JobLevel + JobRole + TotalWorkingYears, data = cs2.data[,-34])
+Model.MIMin <- lm(MonthlyIncome ~ JobRole + JobLevel + TotalWorkingYears + JobLevel*JobRole + JobRole*TotalWorkingYears, data = cs2.data[,-34])
 vif(Model.MIMin)
 summary(Model.MIMin)
 ols_plot_resid_fit(Model.MIMin)
@@ -194,12 +193,22 @@ ols_plot_cooksd_bar(Model.MIMin)
 
 ```{r}
 # Crazy Model
-Model.MICrazy <- lm(MonthlyIncome ~ ,data = cs2.data[,-c(1,34)])
+Model.MICrazy <- lm(MonthlyIncome ~ JobRole + JobLevel + TotalWorkingYears + Gender + 
+                      JobRole*Gender+JobLevel*JobRole + JobRole*TotalWorkingYears,
+                    data = cs2.data[,-c(1,34)])
+
+vif(Model.MICrazy)
+summary(Model.MICrazy)
+ols_plot_resid_fit(Model.MICrazy)
+ols_plot_resid_lev(Model.MICrazy)
+ols_plot_resid_qq(Model.MICrazy)
+ols_plot_resid_hist(Model.MICrazy)
+ols_plot_cooksd_bar(Model.MICrazy)
 ```
 
 ```{r, warning=FALSE}
 # Set number of times you would like to repeat the sampling/testing 
-iterations = 1:1000
+iterations = 1:500
 
 rmseStep = c()
 rmseFull = c()
@@ -222,7 +231,11 @@ for(i in iterations){
   
   Model.FullMI1 <- lm(MonthlyIncome ~ ., data = train.mi[,-c(1,34)])
   
-  Model.MIMin <- lm(MonthlyIncome ~ JobLevel + JobRole + TotalWorkingYears, data = train.mi[,-c(1,34)])
+  Model.MIMin <- lm(MonthlyIncome ~ JobRole + JobLevel + TotalWorkingYears + 
+                      JobLevel*JobRole + JobRole*TotalWorkingYears + JobLevel*TotalWorkingYears, data = train.mi[,-c(1,34)])
+  
+  Model.MICrazy <- lm(MonthlyIncome ~ JobRole + JobLevel + TotalWorkingYears + Gender + 
+                      JobRole*Gender+JobLevel*JobRole + JobRole*TotalWorkingYears,data = train.mi[,-c(1,34)])
   
   # predictors and column building
   # Model 1 - Step
@@ -246,19 +259,24 @@ for(i in iterations){
                 RMSE = RMSE(predictions3,test.mi$MonthlyIncome), MAE = MAE(predictions3, test.mi$MonthlyIncome))
   rmseMin = c(rmseMin, d3$RMSE)
   
-   
- 
+  # Model 4 - Crazy 
+  predictions4 <- Model.MICrazy %>% predict(test.mi)
+  
+  d4= data.frame(R2 = R2(predictions4,test.mi$MonthlyIncome),
+                RMSE = RMSE(predictions4,test.mi$MonthlyIncome), MAE = MAE(predictions4, test.mi$MonthlyIncome))
+  rmseCrazy = c(rmseCrazy, d4$RMSE)
   
   
 } # End for
 # putting the dataframe together and outputting relevant statistics
-Model.Average.RMSE = cbind(rmseStep, rmseFull, rmseMin)
+Model.Average.RMSE = cbind(rmseStep, rmseFull, rmseMin, rmseCrazy)
 rmsedf = as.data.frame(Model.Average.RMSE)
 Means = colMeans(Model.Average.RMSE)
 SDs = round(colSds(Model.Average.RMSE), 3)
 range1 = max(rmsedf$rmseStep) - min(rmsedf$rmseStep)
 range2 = max(rmsedf$rmseFull) - min(rmsedf$rmseFull)
 range3 = max(rmsedf$rmseMin) - min(rmsedf$rmseMin)
+range4 = max(rmsedf$rmseCrazy) - min(rmsedf$rmseCrazy)
 rmsedf1 = melt(rmsedf,rmse = c("n", "rmse"))
 
 # Looking at descriptive stats
@@ -269,6 +287,7 @@ print("ranges - measure of variance between train/test shuffles")
 print(paste("Model Step Range" , round(range1, 3)))
 print(paste("Model Full Range" , round(range2, 3)))
 print(paste("Model Min Range" , round(range3, 3)))
+print(paste("Model Crazy Range" , round(range3, 3)))
 cat("Summary: 
     ")
 summary(Model.Average.RMSE)
@@ -277,9 +296,10 @@ summary(Model.Average.RMSE)
 Pred1 <- data.frame(Value = predictions1, Model = "Step")
 Pred2 <- data.frame(Value = predictions2, Model = "Full")
 Pred3 <- data.frame(Value = predictions3, Model = "Min")
+Pred4 <- data.frame(Value = predictions4, Model = "Crazy")
 PredActual <- data.frame(ActualValue = test.mi$MonthlyIncome)
-PredAll <- rbind(Pred1, Pred2, Pred3)
-PredActual <- rbind(PredActual,PredActual, PredActual)
+PredAll <- rbind(Pred1, Pred2, Pred3, Pred4)
+PredActual <- rbind(PredActual,PredActual, PredActual, PredActual)
 PredAll <- cbind(PredAll, PredActual)
 PredAll %>% ggplot(aes(x = Value, y = ActualValue, fill = Model)) + geom_point(aes(color = Model)) + geom_smooth(method = "lm")+
   facet_wrap(facets = PredAll$Model) + ggtitle("Scatter Plot of Models") + xlab("Predicted") + ylab("Observed")
@@ -304,6 +324,7 @@ f2
 t.test(rmseStep,rmseFull, paired = TRUE, conf.level = 0.99)
 t.test(rmseMin,rmseFull, paired = TRUE, conf.level = 0.99)
 t.test(rmseStep,rmseMin, paired = TRUE, conf.level = 0.99)
+t.test(rmseCrazy,rmseMin, paired = TRUE, conf.level = 0.99)
 ```
 
 
