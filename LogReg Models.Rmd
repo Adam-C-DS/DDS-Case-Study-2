@@ -1,0 +1,158 @@
+---
+title: "Attrition Models"
+author: "Adam Canton"
+date: "8/2/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ROCR)
+library(magrittr)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(naniar)
+library(GGally)
+library(e1071)
+library(class)
+library(caret)
+library(MASS)
+library(caret)
+library(ggcorrplot)
+library(Lahman)
+library(olsrr)
+library(glmnet)
+```
+
+```{r}
+# Get data
+cs2.data <- read.csv(file = "F:/R For Real/DDS-Case-Study-2/CaseStudy2-data.csv", sep = ",", header = TRUE)
+
+exclude_factors = c("EmployeeCount",'Over18','StandardHours')
+cs2.data = cs2.data %>% dplyr::select(-all_of(exclude_factors))
+
+# Split data into sets of different data types 
+cs2.data <- cs2.data %>% mutate(AttNum = ifelse(Attrition == "No",0,1))
+cs2.numeric = cs2.data %>% dplyr::select(Age, DailyRate, DistanceFromHome, HourlyRate, MonthlyIncome, MonthlyRate, NumCompaniesWorked, PercentSalaryHike,
+                                  TotalWorkingYears, TrainingTimesLastYear, YearsAtCompany, YearsInCurrentRole, YearsSinceLastPromotion,
+                                  YearsWithCurrManager,AttNum)
+```
+
+```{r}
+# Create Log Regression with Normal Variables Train and Test sets ----
+
+## currently 90/10 Train/Test proportion of yes to no is 16 to 84
+cs2.yes <- subset(cs2.data, Attrition == "Yes")
+cs2.no <- subset(cs2.data, Attrition == "No")
+
+DimYes <- 100
+DimNo <- 100
+
+set.seed(35)
+index.yes <- sample(1:dim(cs2.yes)[1],DimYes,replace=F)
+train.yes <- cs2.yes[index.yes,]
+test.yes <- cs2.yes[-index.yes,]
+
+index.no <- sample(1:dim(cs2.no)[1],DimNo,replace=F)
+train.no <- cs2.no[index.no,]
+test.no <- cs2.no[-index.no,]
+
+cs2.LogTrain <- rbind(train.no, train.yes)
+cs2.LogTest <- rbind(test.no, test.yes)
+
+exclude_factors <- c("ID", "AttNum")
+
+cs2.LogTrain <- cs2.LogTrain %>% dplyr::select(-all_of(exclude_factors))
+cs2.LogTest <- cs2.LogTest %>% dplyr::select(-all_of(exclude_factors))
+
+# remove intermediate data sets
+rm(test.no, test.yes, train.no, train.yes, cs2.no, cs2.yes)
+
+```
+
+```{r, warning = FALSE}
+# Creates Step Model from Full 
+full.log <- glm(Attrition ~ ., family = 'binomial', data = cs2.LogTrain)
+step.log <- full.log %>% stepAIC(trace = FALSE)
+
+
+summary(step.log) 
+
+# Get predictions from Step Model
+fit.pred.step <- predict(step.log, newdata = cs2.LogTest, type = "response")
+
+p = data.frame(Att = cs2.LogTest$Attrition, Preds = fit.pred.step)
+names(p)[2] <- 'Preds'
+p %>% group_by(Att, Preds) %>% ggplot(aes(x = Preds, fill = Att)) + geom_boxplot() + facet_wrap(~Att)
+```
+
+```{r}
+# Build Lasso Model on train set, finds optimal Lambda
+cs2.Train.x <- model.matrix(Attrition ~ ., cs2.LogTrain)
+cs2.Train.y <- cs2.LogTrain[,2]
+
+cvfit <- cv.glmnet(cs2.Train.x, cs2.Train.y, family = "binomial", type.measure = "class", nlambda = 1000)
+
+plot(cvfit)
+coef(cvfit, s = "lambda.min")
+
+# Cv Missclassification
+print("Cv Error Rate:")
+cvfit$cvm[which(cvfit$lambda==cvfit$lambda.min)]
+
+
+# Optimal Penalty
+print("Penalty Value:")
+cvfit$lambda.min
+
+# Final Model
+finalmodel <- glmnet(cs2.Train.x, cs2.Train.y, family = "binomial", lambda = cvfit$lambda.min)
+```
+
+```{r}
+# Get predictions from Lasso Model on Test set
+cs2.Test.x <- model.matrix(Attrition ~ ., cs2.LogTest)
+
+fit.pred.lasso <- predict(finalmodel, newx = cs2.Test.x, type = "response")
+
+p = data.frame(Att = cs2.LogTest$Attrition, Preds = fit.pred.lasso)
+names(p)[2] <- 'Preds'
+p %>% group_by(Att, Preds) %>% ggplot(aes(x = Preds, fill = Att)) + geom_boxplot() + facet_wrap(~Att)
+
+```
+
+```{r}
+cutoff.lasso <- 0.5
+cutoff.step <- 0.375
+
+class.lasso <- factor(ifelse(fit.pred.lasso > cutoff.lasso, 'Yes','No'),levels = c('No','Yes'))
+class.step <- factor(ifelse(fit.pred.step > cutoff.step, "Yes", "No"), levels = c("No", "Yes"))
+
+print("Confusion Lasso")
+confusionMatrix(class.lasso, cs2.LogTest$Attrition)
+
+cat("**********************************************\n**********************************************\n\n")
+print("Confusion Step")
+confusionMatrix(class.step, cs2.LogTest$Attrition)
+```
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

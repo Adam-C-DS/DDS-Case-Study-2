@@ -138,6 +138,7 @@ set.seed(35)
 index <- sample(1:dim(cs2.data)[1],floor(0.7*dim(cs2.data)),replace=F)
 train.mi <- cs2.data[index,]
 test.mi <- cs2.data[-index,]
+
 ```
 
 
@@ -152,6 +153,7 @@ ols_plot_resid_qq(Model.FullMI1)
 ols_plot_resid_hist(Model.FullMI1)
 ols_plot_cooksd_bar(Model.FullMI1)
 ```
+
 ```{r}
 cs2.reduced <- cs2.data %>% dplyr::select(JobLevel, JobRole, TotalWorkingYears, MonthlyIncome,StockOptionLevel)
 

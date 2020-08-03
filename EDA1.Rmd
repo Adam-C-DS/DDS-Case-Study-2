@@ -353,11 +353,11 @@ cs2.yes = subset(cs2.scale, AttNum == 1)
 cs2.no = subset(cs2.scale, AttNum == 0)
 
 set.seed(35)
-index.yes <- sample(1:dim(cs2.yes)[1],floor(0.9*dim(cs2.yes)),replace=F)
+index.yes <- sample(1:dim(cs2.yes)[1],DimYes,replace=F)
 train.yes <- cs2.yes[index.yes,]
 test.yes <- cs2.yes[-index.yes,]
 
-index.no <- sample(1:dim(cs2.no)[1],floor(0.9*dim(cs2.no)),replace=F)
+index.no <- sample(1:dim(cs2.no)[1],DimNo,replace=F)
 train.no <- cs2.no[index.no,]
 test.no <- cs2.no[-index.no,]
 
@@ -368,6 +368,7 @@ cs2.KNNTest <- rbind(test.no, test.yes)
 # remove intermediate data sets
 rm(test.no, test.yes, train.no, train.yes, cs2.yes, cs2.no)
 ```
+
 
 ```{r}
 #KNN1 -  Full
@@ -380,6 +381,7 @@ table(classifications,cs2.KNNTest$AttNum)
 confusionMatrix(table(classifications,cs2.KNNTest$AttNum))
 
 ```
+
 
 ```{r}
 # KNN 2
