@@ -42,7 +42,6 @@ cs2.numeric = cs2.data %>% dplyr::select(Age, DailyRate, DistanceFromHome, Hourl
 ```{r}
 # Create Log Regression with Normal Variables Train and Test sets ----
 
-## currently 90/10 Train/Test proportion of yes to no is 16 to 84
 cs2.yes <- subset(cs2.data, Attrition == "Yes")
 cs2.no <- subset(cs2.data, Attrition == "No")
 
@@ -84,7 +83,7 @@ fit.pred.step <- predict(step.log, newdata = cs2.LogTest, type = "response")
 
 p = data.frame(Att = cs2.LogTest$Attrition, Preds = fit.pred.step)
 names(p)[2] <- 'Preds'
-p %>% group_by(Att, Preds) %>% ggplot(aes(x = Preds, fill = Att)) + geom_boxplot() + facet_wrap(~Att)
+p %>% group_by(Att, Preds) %>% ggplot(aes(x = Preds, fill = Att)) + geom_boxplot() + facet_grid(rows = vars(p$Att))
 ```
 
 ```{r}
@@ -118,31 +117,120 @@ fit.pred.lasso <- predict(finalmodel, newx = cs2.Test.x, type = "response")
 
 p = data.frame(Att = cs2.LogTest$Attrition, Preds = fit.pred.lasso)
 names(p)[2] <- 'Preds'
-p %>% group_by(Att, Preds) %>% ggplot(aes(x = Preds, fill = Att)) + geom_boxplot() + facet_wrap(~Att)
+p %>% group_by(Att, Preds) %>% ggplot(aes(x = Preds, fill = Att)) + geom_boxplot() + facet_grid(rows = vars(p$Att))
 
 ```
 
 ```{r}
-cutoff.lasso <- 0.5
-cutoff.step <- 0.375
+# Custom Log - The best 16 by vizualization - now to pare it down
+custom.log <- glm(Attrition ~ Age + DistanceFromHome + YearsWithCurrManager + TotalWorkingYears + YearsInCurrentRole + YearsAtCompany + MonthlyIncome + 
+                    JobInvolvement + EducationField + EnvironmentSatisfaction + JobLevel + JobRole + MaritalStatus + OverTime + StockOptionLevel + 
+                    WorkLifeBalance, family = "binomial", data = cs2.LogTrain)
+summary(custom.log)
 
+# Predictions
+fit.pred.custom <- predict(custom.log, newdata = cs2.LogTest, type = "response")
+
+p = data.frame(Att = cs2.LogTest$Attrition, Preds = fit.pred.custom)
+names(p)[2] <- 'Preds'
+p %>% group_by(Att, Preds) %>% ggplot(aes(x = Preds, fill = Att)) + geom_boxplot() + facet_grid(rows = vars(p$Att))
+
+```
+
+```{r}
+# Top 3 Finder!
+Top3.log <- glm(Attrition ~ JobRole + MaritalStatus + OverTime,
+                family = "binomial",
+                data = cs2.LogTrain)
+
+summary(Top3.log)
+
+# Predictions
+fit.pred.Top3 <- predict(Top3.log, newdata = cs2.LogTest, type = "response")
+
+p = data.frame(Att = cs2.LogTest$Attrition, Preds = fit.pred.Top3)
+names(p)[2] <- 'Preds'
+p %>% group_by(Att, Preds) %>% ggplot(aes(x = Preds, fill = Att)) + geom_boxplot() + facet_grid(rows = vars(p$Att))
+
+# How'd it do?
+cutoff.Top3 <- 0.5385
+
+class.Top3 <- factor(ifelse(fit.pred.Top3 > cutoff.Top3, 'Yes','No'),levels = c('No','Yes'))
+confusionMatrix(class.Top3, cs2.LogTest$Attrition)
+```
+```{r}
+p.yes = subset(p, Att == "No") 
+summary(p.yes)
+```
+
+
+```{r}
+# Confusion Matrices!
+cutoff.custom <- 0.5093134 
+cutoff.lasso <- 0.5209
+cutoff.step <- 0.55
+cutoff.Top3 <- 0.5385
+
+
+class.custom <- factor(ifelse(fit.pred.custom > cutoff.custom, 'Yes','No'),levels = c('No','Yes'))
 class.lasso <- factor(ifelse(fit.pred.lasso > cutoff.lasso, 'Yes','No'),levels = c('No','Yes'))
 class.step <- factor(ifelse(fit.pred.step > cutoff.step, "Yes", "No"), levels = c("No", "Yes"))
+class.Top3 <- factor(ifelse(fit.pred.Top3 > cutoff.Top3, 'Yes','No'),levels = c('No','Yes'))
 
 print("Confusion Lasso")
 confusionMatrix(class.lasso, cs2.LogTest$Attrition)
 
 cat("**********************************************\n**********************************************\n\n")
+
 print("Confusion Step")
 confusionMatrix(class.step, cs2.LogTest$Attrition)
+
+cat("**********************************************\n**********************************************\n\n")
+
+print("Confusion Custom")
+confusionMatrix(class.custom, cs2.LogTest$Attrition)
+
+cat("**********************************************\n**********************************************\n\n")
+
+print("Confusion Top3")
+confusionMatrix(class.Top3, cs2.LogTest$Attrition)
+
 ```
 
 ```{r}
+# ROC Curves - since we are looking at the negative class (the Yes's of Attrition) we will be looking at the True and False Negative Rates
+results.lasso <- prediction(fit.pred.lasso, cs2.LogTest$Attrition, label.ordering = c("No", "Yes"))
+roc.lasso <- performance(results.lasso, measure = "tnr", x.measure = "fnr")
 
+results.step <- prediction(fit.pred.step, cs2.LogTest$Attrition, label.ordering = c("No", "Yes"))
+roc.step <- performance(results.step, measure = "tnr", x.measure = "fnr")
+
+results.custom <- prediction(fit.pred.custom, cs2.LogTest$Attrition, label.ordering = c("No", "Yes"))
+roc.custom <- performance(results.custom, measure = "tnr", x.measure = "fnr")
+
+results.Top3 <- prediction(fit.pred.Top3, cs2.LogTest$Attrition, label.ordering = c("No", "Yes"))
+roc.Top3 <- performance(results.Top3, measure = "tnr", x.measure = "fnr")
+
+plot(roc.lasso, col = "red", main = "ROC")
+plot(roc.step, col = "blue", add = TRUE)
+plot(roc.custom, col = "green", add = TRUE)
+plot(roc.Top3, col = "darkorchid4", add = TRUE)
+abline(a = 0, b = 1)
+legend("bottomright",legend=c("Lasso","Stepwise","Custom", "Top3"),col=c("red","blue","green", "darkorchid4"),lty=1,lwd=1)
+```
+
+```{r}
+results.Knn <- prediction(prob, cs2.KNNTest$AttNum,)
+roc.Knn <- performance(results.Knn, measure = "tnr", x.measure = "fnr")
 ```
 
 
-
+```{r}
+plot(roc.Top3, col = "darkorchid4", main = "ROC Comparison")
+plot(roc.Knn, col = "orange", add = TRUE)
+abline(a = 0, b = 1)
+legend("bottomright",legend=c("Top3", "Knn"),col=c("darkorchid4", "orange"),lty=1,lwd=1)
+```
 
 
 
