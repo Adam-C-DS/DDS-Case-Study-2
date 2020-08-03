@@ -1,0 +1,99 @@
+---
+title: "KNN Models"
+author: "Adam Canton"
+date: "8/3/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ROCR)
+library(magrittr)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(naniar)
+library(GGally)
+library(e1071)
+library(class)
+library(caret)
+library(MASS)
+library(caret)
+library(ggcorrplot)
+library(Lahman)
+library(olsrr)
+library(glmnet)
+
+```
+
+```{r}
+# Get data
+cs2.data <- read.csv(file = "F:/R For Real/DDS-Case-Study-2/CaseStudy2-data.csv", sep = ",", header = TRUE)
+
+exclude_factors = c("EmployeeCount",'Over18','StandardHours')
+cs2.data = cs2.data %>% dplyr::select(-all_of(exclude_factors))
+
+# Split data into sets of different data types 
+cs2.data <- cs2.data %>% mutate(AttNum = ifelse(Attrition == "No",0,1))
+cs2.numeric = cs2.data %>% dplyr::select(Age, DailyRate, DistanceFromHome, HourlyRate, MonthlyIncome, MonthlyRate, NumCompaniesWorked, PercentSalaryHike,
+                                  TotalWorkingYears, TrainingTimesLastYear, YearsAtCompany, YearsInCurrentRole, YearsSinceLastPromotion,
+                                  YearsWithCurrManager,AttNum)
+```
+
+```{r}
+# Scaling numeric variables
+cs2.scale <- data.frame(scale(cs2.numeric[,-15]))
+cs2.scale$AttNum <- cs2.numeric$AttNum
+
+cs2.yes = subset(cs2.scale, AttNum == 1)
+cs2.no = subset(cs2.scale, AttNum == 0)
+
+DimYes <- 100
+DimNo <- 100
+
+set.seed(35)
+index.yes <- sample(1:dim(cs2.yes)[1],DimYes,replace=F)
+train.yes <- cs2.yes[index.yes,]
+test.yes <- cs2.yes[-index.yes,]
+
+index.no <- sample(1:dim(cs2.no)[1],DimNo,replace=F)
+train.no <- cs2.no[index.no,]
+test.no <- cs2.no[-index.no,]
+
+cs2.KNNTrain <- rbind(train.no, train.yes)
+cs2.KNNTest <- rbind(test.no, test.yes)
+
+
+# remove intermediate data sets
+rm(test.no, test.yes, train.no, train.yes, cs2.yes, cs2.no)
+```
+
+
+```{r}
+#KNN1 -  Full
+# knn(train, test, factor of true classifications from train, k = , prob = TRUE)
+
+knnvector1 <- c(1,2,3,4,5,6,7,8,9,10,11,12,13,14)
+
+classifications = knn(cs2.KNNTrain[,knnvector1], cs2.KNNTest[, knnvector1], cs2.KNNTrain$AttNum, prob = TRUE, k = 3)
+
+prob <- attr(classifications, "prob")
+
+confusionMatrix(table(classifications,cs2.KNNTest$AttNum))
+
+```
+
+
+```{r}
+# KNN 2
+knnvector1 <- c(1,3,5,9,11,12,14)
+
+classifications = knn(cs2.KNNTrain[,knnvector1], cs2.KNNTest[, knnvector1], cs2.KNNTrain$AttNum, prob = TRUE, k = 3)
+
+
+confusionMatrix(table(classifications,cs2.KNNTest$AttNum))
+```
+
+
+
+
