@@ -39,6 +39,11 @@ cs2.numeric = cs2.data %>% dplyr::select(Age, DailyRate, DistanceFromHome, Hourl
 
 ```
 
+```{r}
+library(esquisse)
+esquisser(cs2.data)
+```
+
 
 ```{r}
 # No Apparent NA Values, need to check for other NA identifiers
@@ -129,9 +134,15 @@ cs2.data %>% filter(Attrition == "Yes") %>% ggplot(aes(x = YearsWithCurrManager)
 
 # Of those who leave 40% do so before the end of the first year, 60% by year 3, and by year 7 90%
 cs2.data %>% filter(Attrition == "Yes") %>% ggplot(aes(x = YearsWithCurrManager)) + stat_ecdf() + 
-  scale_y_continuous(breaks = seq(0,1,0.1)) + scale_x_continuous(breaks = seq(1,15,1)) +
+  scale_y_continuous(breaks = seq(0,1,0.1)) + scale_x_continuous(breaks = seq(1,15,1)) + 
+  geom_vline(xintercept = 2, color = "red", size = 1.5, linetype = "dashed") +
+  geom_vline(xintercept = 7, color = "gold", size = 1.5, linetype = "dashed") +
   ggtitle("Cumulative Proportion of Attrition by Years with Current Manager") + ylab("Cumulative Proportion of Attrition") +
   xlab("Years With Current Manager")
+```
+
+```{r}
+cs2.data %>% filter(Attrition == "Yes") %>% summarise(median = median(TotalWorkingYears), mean = mean(TotalWorkingYears))
 ```
 
 
@@ -417,13 +428,13 @@ par(mfrow=c(1,1))
 ```
 
 ```{r}
-pc.scores %>% ggplot(aes(x = PC2, y = PC4, color = AttNum)) + geom_point()
+pc.scores %>% ggplot(aes(x = PC1, y = PC2, color = AttNum, group = AttNum)) + geom_point()
 
 pc.scores %>% ggplot(aes(x = PC1, y = PC3, color = AttNum)) + geom_point()
 
-pc.scores %>% ggplot(aes(x = PC1, y = PC4, color = AttNum)) + geom_point()
+pc.scores %>% ggplot(aes(x = PC2, y = PC3, color = AttNum)) + geom_point()
 
-pc.scores %>% ggplot(aes(x = PC1, y = PC5, color = AttNum)) + geom_point()
+pc.scores %>% ggplot(aes(x = PC2, y = PC4, color = AttNum)) + geom_point()
 
 pc.scores %>% ggplot(aes(x = PC1, y = PC6, color = AttNum)) + geom_point()
 
