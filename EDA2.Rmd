@@ -191,3 +191,25 @@ cs2.data %>% group_by(JobRole, Attrition, JobInvolvement) %>% summarise(count = 
   theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
 ```
 
+```{r}
+cs2.data %>% group_by(Department, Gender) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+  ggplot(aes(x = Department,y = Perc,  fill = Gender)) + 
+  geom_bar(stat = "identity", position = "stack") + 
+  geom_text(aes(label = round(Perc,3)), position = position_stack(vjust = 0.5)) + 
+  ylab("Percent") + ggtitle("Department Composition by Gender")
+```
+
+```{r}
+cs2.data %>% ggplot(aes(x = BusinessTravel, fill = Gender)) + geom_boxplot()
+```
+
+
+
+
+
+
+
+
+
+
+
