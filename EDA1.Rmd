@@ -375,7 +375,7 @@ par(mfrow=c(1,1))
 ```
 
 ```{r}
-# Nothing Looks useful
+# Nothing Looks useful - no separation, no groupings
 pc.scores %>% ggplot(aes(x = PC1, y = PC2, color = AttNum, group = AttNum)) + geom_point()
 
 pc.scores %>% ggplot(aes(x = PC1, y = PC3, color = AttNum)) + geom_point()
