@@ -29,6 +29,7 @@ library(matrixStats)
 library(reshape2)
 ```
 
+# Intialize
 ```{r}
 # Get data
 cs2.data <- read.csv(file = "F:/R For Real/DDS-Case-Study-2/CaseStudy2-data.csv", sep = ",", header = TRUE)
@@ -45,6 +46,8 @@ cs2.numeric = cs2.data %>% dplyr::select(Age, DailyRate, DistanceFromHome, Hourl
                                   YearsWithCurrManager,AttNum)
 ```
 
+
+# Correlations of continous variables -  none high enough to want to get rid of them
 ```{r}
 corr <- round(cor(cs2.numeric), 3)
 
@@ -55,11 +58,8 @@ ggcorrplot(corr, hc.order = TRUE, type = "lower",
            ggtheme = theme_bw())
 
 ```
-
+# Lots of Graphs of categorical variables vs Monthly Income - Interesting ones were pulled out in the block below
 ```{r}
-
-# Need to work on the grid plots
-
 g1 = cs2.data %>% ggplot(aes(x = Education, y =  MonthlyIncome, group = Education)) + geom_boxplot()
 
 
@@ -113,15 +113,13 @@ g17 = cs2.data %>% ggplot(aes(x = TrainingTimesLastYear, y = MonthlyIncome, grou
 g18 = cs2.data %>% ggplot(aes(x = WorkLifeBalance, y = MonthlyIncome, group = WorkLifeBalance)) + geom_boxplot()
 
 
-
+# Gather graphs in a plot grid
 plot_grid(g3, g4, g6,g7,g10, g11, nrow = 2, ncol = 3)
 
 plot_grid(g13, g14, g15,g16, g17,g18, nrow = 2, ncol = 3)
-
-
 ```
 
-
+# The ones that showed differences
 ```{r}
 # Interesting
 g1
@@ -132,6 +130,30 @@ g9
 g12
 ```
 
+# The Continous Variables vs Monthly Income - 
+```{r}
+cs2.data %>% ggplot(aes(x = MonthlyRate, y = MonthlyIncome, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = NumCompaniesWorked, y = MonthlyIncome, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = PercentSalaryHike, y = MonthlyIncome, color = Attrition)) + geom_point()
+
+# clearly a strong relationship here
+cs2.data %>% ggplot(aes(x = TotalWorkingYears, y = MonthlyIncome, color = Attrition)) + geom_point()
+
+# not as related as expected -  though clear positive relationship
+cs2.data %>% ggplot(aes(x = YearsAtCompany, y = MonthlyIncome, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = YearsInCurrentRole, y =  MonthlyIncome, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = YearsSinceLastPromotion, y = MonthlyIncome, color = Attrition)) + geom_point()
+
+cs2.data %>% ggplot(aes(x = YearsWithCurrManager, y = MonthlyIncome, color = Attrition)) + geom_point()
+
+```
+
+
+# Set Training and Test
 ```{r}
 # Set training and test sets 70/30
 set.seed(35)
@@ -141,7 +163,7 @@ test.mi <- cs2.data[-index,]
 
 ```
 
-
+# Full Model
 ```{r}
 # this has supprisingly good fit stats, weirdly grouped residuals though
 Model.FullMI1 <- lm(MonthlyIncome ~ ., data = cs2.data[,-c(1,34)])
@@ -153,23 +175,19 @@ ols_plot_resid_qq(Model.FullMI1)
 ols_plot_resid_hist(Model.FullMI1)
 ols_plot_cooksd_bar(Model.FullMI1)
 ```
-
+# Looking for Interactions
 ```{r}
+# enter the variables you want to find interactions between -  keep it brief
 cs2.reduced <- cs2.data %>% dplyr::select(JobLevel, JobRole, TotalWorkingYears, MonthlyIncome,StockOptionLevel)
 
 Model.Reduced <- lm(MonthlyIncome ~ (.)^2, data = cs2.reduced )
-```
 
-```{r}
-#ols_step_both_p(Model.FullMI1)
+# a look at how good each set is
 ols_step_all_possible(Model.Reduced)
 ```
 
 ```{r}
-ols_plot_added_variable(Model.MIStep)
-```
-
-```{r}
+# Selected by step model
 Model.MIStep = lm(MonthlyIncome ~ JobLevel + JobRole + TotalWorkingYears + BusinessTravel + Gender + DailyRate + MonthlyRate + 
                     YearsWithCurrManager + YearsSinceLastPromotion + DistanceFromHome + EmployeeNumber, data = cs2.data[,-34])
 vif(Model.MIStep)
@@ -182,17 +200,23 @@ ols_plot_cooksd_bar(Model.MIStep)
 ```
 
 ```{r}
+# partial residuals of the step model just input the model name you would like to look at.
+ols_plot_added_variable(Model.MIMin)
+```
+
+```{r}
 Model.MIMin <- lm(MonthlyIncome ~ JobRole + JobLevel + TotalWorkingYears + JobLevel*JobRole + JobRole*TotalWorkingYears, data = cs2.data[,-34])
 vif(Model.MIMin)
 summary(Model.MIMin)
-ols_plot_resid_fit(Model.MIMin)
-ols_plot_resid_lev(Model.MIMin)
-ols_plot_resid_qq(Model.MIMin)
-ols_plot_resid_hist(Model.MIMin)
-ols_plot_cooksd_bar(Model.MIMin)
+ols_plot_diagnostics(Model.MIMin)
+#ols_plot_resid_fit(Model.MIMin)
+#ols_plot_resid_lev(Model.MIMin)
+#ols_plot_resid_qq(Model.MIMin)
+#ols_plot_resid_hist(Model.MIMin)
+#ols_plot_cooksd_bar(Model.MIMin)
 ```
 
-
+# A place to plug in whatever and give it a run
 ```{r}
 # Crazy Model
 Model.MICrazy <- lm(MonthlyIncome ~ JobRole + JobLevel + TotalWorkingYears + Gender + 
@@ -208,6 +232,7 @@ ols_plot_resid_hist(Model.MICrazy)
 ols_plot_cooksd_bar(Model.MICrazy)
 ```
 
+# Model Benchmarking -  generally the minimum model the optimal choice
 ```{r, warning=FALSE}
 # Set number of times you would like to repeat the sampling/testing 
 iterations = 1:500
@@ -328,5 +353,13 @@ t.test(rmseMin,rmseFull, paired = TRUE, conf.level = 0.99)
 t.test(rmseStep,rmseMin, paired = TRUE, conf.level = 0.99)
 t.test(rmseCrazy,rmseMin, paired = TRUE, conf.level = 0.99)
 ```
-
+# Predictions for new data
+```{r}
+cs2.NewData <- read.csv(file = "F:/R For Real/DDS-Case-Study-2/CaseStudy2CompSet No Salary.csv")
+New.MI <- predict(Model.MIMin,cs2.NewData)
+report.out <- data.frame(cs2.NewData[1],New.MI)
+names(report.out)[1] <- "ID"
+names(report.out)[2] <- "Predicted Monthly Income"
+write.csv(report.out, file = "F:/R For Real/DDS-Case-Study-2/Case2PredictionsCanton Salary.csv", row.names = FALSE)
+```
 
