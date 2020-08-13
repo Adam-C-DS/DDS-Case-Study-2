@@ -29,18 +29,30 @@ library(glmnet)
 # Get data
 cs2.data <- read.csv(file = "F:/R For Real/DDS-Case-Study-2/CaseStudy2-data.csv", sep = ",", header = TRUE)
 
+
+# data excluded as it is constant
 exclude_factors = c("EmployeeCount",'Over18','StandardHours')
 cs2.data = cs2.data %>% dplyr::select(-all_of(exclude_factors))
 
-# Split data into sets of different data types 
+# Creates a numeric analog to for models that have continous inputs only 
 cs2.data <- cs2.data %>% mutate(AttNum = ifelse(Attrition == "No",0,1))
+
+# creates a data set of numeric Values
 cs2.numeric = cs2.data %>% dplyr::select(Age, DailyRate, DistanceFromHome, HourlyRate, MonthlyIncome, MonthlyRate, NumCompaniesWorked, PercentSalaryHike,
                                   TotalWorkingYears, TrainingTimesLastYear, YearsAtCompany, YearsInCurrentRole, YearsSinceLastPromotion,
                                   YearsWithCurrManager,AttNum)
+
+# cs2.reduced - model for finding interactions
+cs2.Reduced <-  cs2.data %>% dplyr::select(JobLevel, Education, JobRole, MaritalStatus, TotalWorkingYears, DistanceFromHome, Attrition)
 ```
 
+
+# Set sample
+## Watch out for what data set you are sampling
 ```{r}
 # Create Log Regression with Normal Variables Train and Test sets ----
+# If we are looking for interactions through the step function - sample the reduced model - If doing reduced Comment out the exclude factors and following selects
+# Forcing a 50/50 sample  - these leaves the test set as 630 No's and 40 Yes's or a 94/6 test split
 
 cs2.yes <- subset(cs2.data, Attrition == "Yes")
 cs2.no <- subset(cs2.data, Attrition == "No")
@@ -70,9 +82,15 @@ rm(test.no, test.yes, train.no, train.yes, cs2.no, cs2.yes)
 
 ```
 
+
+# Step Model 
+## Also used to find significant interactions when using the reduced data set
 ```{r, warning = FALSE}
-# Creates Step Model from Full 
-full.log <- glm(Attrition ~ ., family = 'binomial', data = cs2.LogTrain)
+# Creates Step Model from Full - 
+# if looking for significant interactions from the reduced model change Attrition ~ . to Attrition ~ (.)^2
+# Did not find any significant interactions from the reduced model
+
+full.log <- glm(Attrition ~ (.)^2, family = 'binomial', data = cs2.LogTrain)
 step.log <- full.log %>% stepAIC(trace = FALSE)
 
 
@@ -84,8 +102,16 @@ fit.pred.step <- predict(step.log, newdata = cs2.LogTest, type = "response")
 p = data.frame(Att = cs2.LogTest$Attrition, Preds = fit.pred.step)
 names(p)[2] <- 'Preds'
 p %>% group_by(Att, Preds) %>% ggplot(aes(x = Preds, fill = Att)) + geom_boxplot() + facet_grid(rows = vars(p$Att))
-```
 
+cutoff.step = 0.41
+
+class.step <- factor(ifelse(fit.pred.step > cutoff.step, "Yes", "No"), levels = c("No", "Yes"))
+
+print("Confusion Step")
+confusionMatrix(class.step, cs2.LogTest$Attrition)
+```
+# Lasso Model
+# Selects minimum lambda value
 ```{r}
 # Build Lasso Model on train set, finds optimal Lambda
 cs2.Train.x <- model.matrix(Attrition ~ ., cs2.LogTrain)
@@ -107,9 +133,7 @@ cvfit$lambda.min
 
 # Final Model
 finalmodel <- glmnet(cs2.Train.x, cs2.Train.y, family = "binomial", lambda = cvfit$lambda.min)
-```
 
-```{r}
 # Get predictions from Lasso Model on Test set
 cs2.Test.x <- model.matrix(Attrition ~ ., cs2.LogTest)
 
@@ -119,8 +143,16 @@ p = data.frame(Att = cs2.LogTest$Attrition, Preds = fit.pred.lasso)
 names(p)[2] <- 'Preds'
 p %>% group_by(Att, Preds) %>% ggplot(aes(x = Preds, fill = Att)) + geom_boxplot() + facet_grid(rows = vars(p$Att))
 
-```
+# Set cutoff for yes/no
+cutoff.lasso = 0.5
 
+class.lasso <- factor(ifelse(fit.pred.lasso > cutoff.lasso, 'Yes','No'),levels = c('No','Yes'))
+
+# How did it do?
+print("Confusion Lasso")
+confusionMatrix(class.lasso, cs2.LogTest$Attrition)
+```
+# Custom Model - used to build up complexity -  no significant interactions were found
 ```{r}
 # Custom Log - The best 16 by vizualization - now to pare it down
 custom.log <- glm(Attrition ~ Age + DistanceFromHome + YearsWithCurrManager + TotalWorkingYears + YearsInCurrentRole + YearsAtCompany + MonthlyIncome + 
@@ -135,8 +167,14 @@ p = data.frame(Att = cs2.LogTest$Attrition, Preds = fit.pred.custom)
 names(p)[2] <- 'Preds'
 p %>% group_by(Att, Preds) %>% ggplot(aes(x = Preds, fill = Att)) + geom_boxplot() + facet_grid(rows = vars(p$Att))
 
-```
+cutoff.custom = 0.51
 
+class.custom <- factor(ifelse(fit.pred.custom > cutoff.custom, 'Yes','No'),levels = c('No','Yes'))
+
+print("Confusion Custom")
+confusionMatrix(class.custom, cs2.LogTest$Attrition)
+```
+# Used to find the top 3!
 ```{r}
 # Top 3 Finder!
 Top3.log <- glm(Attrition ~ JobRole + MaritalStatus + OverTime,
@@ -158,18 +196,37 @@ cutoff.Top3 <- 0.5385
 class.Top3 <- factor(ifelse(fit.pred.Top3 > cutoff.Top3, 'Yes','No'),levels = c('No','Yes'))
 confusionMatrix(class.Top3, cs2.LogTest$Attrition)
 ```
+# Iterates the cutoff from 0.0005 to 1 in increments of 0.0005 to find the best
 ```{r}
-p.yes = subset(p, Att == "No") 
-summary(p.yes)
+# Cut off Finder - Just replace fit.pred.x - with whatever model you want to analyze, first line of the for loop
+CM.Acc <- c()
+CM.Sens <- c()
+CM.Spec <- c()
+index <- 1:2000/2000
+for (i in index){
+  
+  class.simple <- factor(ifelse(fit.pred.Top3 > i, 'Yes','No'),levels = c('No','Yes'))
+  CM = confusionMatrix(class.simple, cs2.LogTest$Attrition)
+ 
+  CM.Acc <- c(CM.Acc,(CM$table[1,2] + CM$table[2,1])/sum(CM$table))
+  CM.Sens <- c(CM.Sens,CM$table[2,1]/(CM$table[2,1] + CM$table[1,1]))
+  CM.Spec <- c(CM.Spec,CM$table[1,2]/(CM$table[1,2] + CM$table[2,2]))
+}
+
+plot(index,CM.Acc,type="l",col="black",ylab="Percent",xlab="Threshold for predicting Yes",ylim=c(0,1),lwd=2,main = "Top3 Cutoff")
+lines(index,CM.Sens,lty=3,col="orange",lwd=2)
+lines(index,CM.Spec,lty=5,col="blue",lwd=2)
+abline(v = .615, col = "darkorchid4")
+legend("top",legend=c("ME","FP","FN"),col=c("black","orange","blue"),lty=1,lwd=1)
+
 ```
-
-
+# A place to see all the confusion matrices and cutoffs
 ```{r}
 # Confusion Matrices!
-cutoff.custom <- 0.5093134 
-cutoff.lasso <- 0.5209
-cutoff.step <- 0.55
-cutoff.Top3 <- 0.5385
+cutoff.custom <- 0.51
+cutoff.lasso <- 0.5
+cutoff.step <- 0.41
+cutoff.Top3 <- 0.615
 
 
 class.custom <- factor(ifelse(fit.pred.custom > cutoff.custom, 'Yes','No'),levels = c('No','Yes'))
@@ -196,7 +253,7 @@ print("Confusion Top3")
 confusionMatrix(class.Top3, cs2.LogTest$Attrition)
 
 ```
-
+# ROC Curves to compare results - 
 ```{r}
 # ROC Curves - since we are looking at the negative class (the Yes's of Attrition) we will be looking at the True and False Negative Rates
 results.lasso <- prediction(fit.pred.lasso, cs2.LogTest$Attrition, label.ordering = c("No", "Yes"))
@@ -211,28 +268,34 @@ roc.custom <- performance(results.custom, measure = "tnr", x.measure = "fnr")
 results.Top3 <- prediction(fit.pred.Top3, cs2.LogTest$Attrition, label.ordering = c("No", "Yes"))
 roc.Top3 <- performance(results.Top3, measure = "tnr", x.measure = "fnr")
 
-plot(roc.lasso, col = "red", main = "ROC")
+plot(roc.lasso, col = "red", main = "Comparison of Log Models")
 plot(roc.step, col = "blue", add = TRUE)
 plot(roc.custom, col = "green", add = TRUE)
 plot(roc.Top3, col = "darkorchid4", add = TRUE)
 abline(a = 0, b = 1)
 legend("bottomright",legend=c("Lasso","Stepwise","Custom", "Top3"),col=c("red","blue","green", "darkorchid4"),lty=1,lwd=1)
 ```
-
+# KNN Models
 ```{r}
 results.Knn <- prediction(prob, cs2.KNNTest$AttNum,)
 roc.Knn <- performance(results.Knn, measure = "tnr", x.measure = "fnr")
-```
 
-
-```{r}
-plot(roc.Top3, col = "darkorchid4", main = "ROC Comparison")
+# a look at KNN vs the top LogReg Model -  KNN didnt do too well at classifying here due to a lot of the variation coming from the categorical variables
+plot(roc.Top3, col = "darkorchid4", main = "Comparison Between Winning Log Model and KNN")
 plot(roc.Knn, col = "orange", add = TRUE)
 abline(a = 0, b = 1)
 legend("bottomright",legend=c("Top3", "Knn"),col=c("darkorchid4", "orange"),lty=1,lwd=1)
 ```
+# Predicitions Out for Classification
+```{r}
+cs2.NewClass <- read.csv(file = "F:/R For Real/DDS-Case-Study-2/CaseStudy2CompSet No Attrition.csv")
+NewClass <- predict(Top3.log, newdata = cs2.NewClass, type = "response")
+class.New <- factor(ifelse(NewClass > cutoff.Top3, 'Yes','No'),levels = c('No','Yes'))
+report.out <- data.frame(cs2.NewClass[1], class.New)
+names(report.out)[2] <- "Predicted Attrition"
+write.csv(report.out, file = "F:/R For Real/DDS-Case-Study-2/Case2PredictionsCanton Attrition.csv", row.names = FALSE)
 
-
+```
 
 
 
