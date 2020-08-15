@@ -134,7 +134,8 @@ cs2.data %>% group_by(Gender, Attrition) %>% summarise(count = n()) %>% mutate(P
 
 cs2.data %>% group_by(JobInvolvement, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
   ggplot(aes(x = JobInvolvement, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1)) + ylab("Percent") + ggtitle("Job Involvement By Attrition") + 
+  geom_text(aes(x = JobInvolvement, y = Perc, label = round(Perc,3), group = Attrition), position = position_stack(vjust = 0.5), size = 6)
 
 
 cs2.data %>% group_by(JobLevel, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
@@ -183,11 +184,7 @@ cs2.data %>% group_by(StockOptionLevel, Attrition) %>% summarise(count = n()) %>
 
 
 cs2.data %>% group_by(WorkLifeBalance, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
-  ggplot(aes(x = WorkLifeBalance, y = Perc, fill = Attrition, group = WorkLifeBalance)) + geom_bar(stat = "identity") + 
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
-
-cs2.data %>% group_by(JobRole, Attrition, JobInvolvement) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
-  ggplot(aes(x = JobRole, y = Perc, fill = JobInvolvement, group = JobInvolvement)) + geom_bar(stat = "identity") + 
+  ggplot(aes(x = WorkLifeBalance, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
   theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1))
 ```
 
@@ -200,7 +197,10 @@ cs2.data %>% group_by(Department, Gender) %>% summarise(count = n()) %>% mutate(
 ```
 
 ```{r}
-cs2.data %>% ggplot(aes(x = BusinessTravel, fill = Gender)) + geom_boxplot()
+cs2.data %>% group_by(JobLevel, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+  ggplot(aes(x = JobLevel, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) + ylab("Percent") + ggtitle("Job Level By Attrition") + 
+  geom_text(aes(x = JobLevel, y = Perc, label = round(Perc,3), group = Attrition), position = position_stack(vjust = 0.5), size = 4)
 ```
 
 

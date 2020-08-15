@@ -23,6 +23,7 @@ library(ggcorrplot)
 library(Lahman)
 library(olsrr)
 library(glmnet)
+library(cowplot)
 ```
 
 ```{r}
@@ -90,7 +91,7 @@ rm(test.no, test.yes, train.no, train.yes, cs2.no, cs2.yes)
 # if looking for significant interactions from the reduced model change Attrition ~ . to Attrition ~ (.)^2
 # Did not find any significant interactions from the reduced model
 
-full.log <- glm(Attrition ~ (.)^2, family = 'binomial', data = cs2.LogTrain)
+full.log <- glm(Attrition ~ ., family = 'binomial', data = cs2.LogTrain)
 step.log <- full.log %>% stepAIC(trace = FALSE)
 
 
@@ -110,6 +111,7 @@ class.step <- factor(ifelse(fit.pred.step > cutoff.step, "Yes", "No"), levels = 
 print("Confusion Step")
 confusionMatrix(class.step, cs2.LogTest$Attrition)
 ```
+
 # Lasso Model
 # Selects minimum lambda value
 ```{r}
@@ -144,20 +146,22 @@ names(p)[2] <- 'Preds'
 p %>% group_by(Att, Preds) %>% ggplot(aes(x = Preds, fill = Att)) + geom_boxplot() + facet_grid(rows = vars(p$Att))
 
 # Set cutoff for yes/no
-cutoff.lasso = 0.5
+cutoff.lasso = 0.475
 
 class.lasso <- factor(ifelse(fit.pred.lasso > cutoff.lasso, 'Yes','No'),levels = c('No','Yes'))
 
 # How did it do?
 print("Confusion Lasso")
 confusionMatrix(class.lasso, cs2.LogTest$Attrition)
+
+coef(finalmodel)
 ```
+
 # Custom Model - used to build up complexity -  no significant interactions were found
 ```{r}
 # Custom Log - The best 16 by vizualization - now to pare it down
-custom.log <- glm(Attrition ~ Age + DistanceFromHome + YearsWithCurrManager + TotalWorkingYears + YearsInCurrentRole + YearsAtCompany + MonthlyIncome + 
-                    JobInvolvement + EducationField + EnvironmentSatisfaction + JobLevel + JobRole + MaritalStatus + OverTime + StockOptionLevel + 
-                    WorkLifeBalance, family = "binomial", data = cs2.LogTrain)
+custom.log <- glm(Attrition ~ JobLevel + JobRole + OverTime + JobInvolvement + MaritalStatus,
+                  family = "binomial", data = cs2.LogTrain)
 summary(custom.log)
 
 # Predictions
@@ -167,17 +171,18 @@ p = data.frame(Att = cs2.LogTest$Attrition, Preds = fit.pred.custom)
 names(p)[2] <- 'Preds'
 p %>% group_by(Att, Preds) %>% ggplot(aes(x = Preds, fill = Att)) + geom_boxplot() + facet_grid(rows = vars(p$Att))
 
-cutoff.custom = 0.51
+cutoff.custom = 0.52
 
 class.custom <- factor(ifelse(fit.pred.custom > cutoff.custom, 'Yes','No'),levels = c('No','Yes'))
 
 print("Confusion Custom")
 confusionMatrix(class.custom, cs2.LogTest$Attrition)
 ```
+
 # Used to find the top 3!
 ```{r}
-# Top 3 Finder!
-Top3.log <- glm(Attrition ~ JobRole + MaritalStatus + OverTime,
+# Top 3 Finder! - Think I found it
+Top3.log <- glm(Attrition ~ JobLevel + MaritalStatus + OverTime,
                 family = "binomial",
                 data = cs2.LogTrain)
 
@@ -191,21 +196,24 @@ names(p)[2] <- 'Preds'
 p %>% group_by(Att, Preds) %>% ggplot(aes(x = Preds, fill = Att)) + geom_boxplot() + facet_grid(rows = vars(p$Att))
 
 # How'd it do?
-cutoff.Top3 <- 0.5385
+cutoff.Top3 <-  0.5405
 
 class.Top3 <- factor(ifelse(fit.pred.Top3 > cutoff.Top3, 'Yes','No'),levels = c('No','Yes'))
 confusionMatrix(class.Top3, cs2.LogTest$Attrition)
+confint(Top3.log, c("JobLevel", "MaritalStatusMarried", "MaritalStatusSingle", "OverTimeYes"), 0.95)
 ```
+
 # Iterates the cutoff from 0.0005 to 1 in increments of 0.0005 to find the best
 ```{r}
 # Cut off Finder - Just replace fit.pred.x - with whatever model you want to analyze, first line of the for loop
+# I just use the vertical line to iterate until I find the intersection - or if a non-balanced point is preferred
 CM.Acc <- c()
 CM.Sens <- c()
 CM.Spec <- c()
 index <- 1:2000/2000
 for (i in index){
   
-  class.simple <- factor(ifelse(fit.pred.Top3 > i, 'Yes','No'),levels = c('No','Yes'))
+  class.simple <- factor(ifelse(fit.pred.custom > i, 'Yes','No'),levels = c('No','Yes'))
   CM = confusionMatrix(class.simple, cs2.LogTest$Attrition)
  
   CM.Acc <- c(CM.Acc,(CM$table[1,2] + CM$table[2,1])/sum(CM$table))
@@ -216,7 +224,7 @@ for (i in index){
 plot(index,CM.Acc,type="l",col="black",ylab="Percent",xlab="Threshold for predicting Yes",ylim=c(0,1),lwd=2,main = "Top3 Cutoff")
 lines(index,CM.Sens,lty=3,col="orange",lwd=2)
 lines(index,CM.Spec,lty=5,col="blue",lwd=2)
-abline(v = .615, col = "darkorchid4")
+abline(v = 0.52, col = "darkorchid4")
 legend("top",legend=c("ME","FP","FN"),col=c("black","orange","blue"),lty=1,lwd=1)
 
 ```
@@ -300,7 +308,138 @@ write.csv(report.out, file = "F:/R For Real/DDS-Case-Study-2/Case2PredictionsCan
 
 
 
+# CV
+```{r}
 
+iterations <- 1:500
+DimYes <- 100
+DimNo <- 100
+
+CM1.Acc.Holder <- c()
+CM2.Acc.Holder <- c()
+CM3.Acc.Holder <- c()
+
+CM1.Sens.Holder <- c()
+CM2.Sens.Holder <- c()
+CM3.Sens.Holder <- c()
+
+CM1.Spec.Holder <- c()
+CM2.Spec.Holder <- c()
+CM3.Spec.Holder <- c()
+
+for(i in iterations){
+  
+  # Re-Sample
+  set.seed(i)
+  cs2.yes <- subset(cs2.data, Attrition == "Yes")
+  cs2.no <- subset(cs2.data, Attrition == "No")
+
+  index.yes <- sample(1:dim(cs2.yes)[1],DimYes,replace=F)
+  train.yes <- cs2.yes[index.yes,]
+  test.yes <- cs2.yes[-index.yes,]
+
+  index.no <- sample(1:dim(cs2.no)[1],DimNo,replace=F)
+  train.no <- cs2.no[index.no,]
+  test.no <- cs2.no[-index.no,]
+
+  cs2.LogTrain <- rbind(train.no, train.yes)
+  cs2.LogTest <- rbind(test.no, test.yes)
+
+  exclude_factors <- c("ID", "AttNum")
+
+  cs2.LogTrain <- cs2.LogTrain %>% dplyr::select(-all_of(exclude_factors))
+  cs2.LogTest <- cs2.LogTest %>% dplyr::select(-all_of(exclude_factors))
+  
+  # Lasso Matrices
+  cs2.Train.x <- model.matrix(Attrition ~ ., cs2.LogTrain)
+  cs2.Train.y <- cs2.LogTrain[,2]
+  cs2.Test.x <- model.matrix(Attrition ~ ., cs2.LogTest)
+
+  
+  # Models
+  custom.log <- glm(Attrition ~  JobLevel + JobRole + OverTime + JobInvolvement + MaritalStatus,
+                  family = "binomial",
+                  data = cs2.LogTrain)
+  
+  Top3.log <- glm(Attrition ~ JobLevel + MaritalStatus + OverTime,
+                family = "binomial",
+                data = cs2.LogTrain)
+
+  finalmodel <- glmnet(cs2.Train.x, cs2.Train.y, family = "binomial", lambda = cvfit$lambda.min)
+  
+  # Predictions
+  fit.pred.custom <- predict(custom.log, newdata = cs2.LogTest, type = "response")
+  
+  fit.pred.Top3 <- predict(Top3.log, newdata = cs2.LogTest, type = "response")
+  
+  fit.pred.lasso <- predict(finalmodel, newx = cs2.Test.x, type = "response")
+  
+  # Confusion Matrices
+  class.custom <- factor(ifelse(fit.pred.custom > cutoff.custom, 'Yes','No'),levels = c('No','Yes'))
+  CM1 = confusionMatrix(class.custom, cs2.LogTest$Attrition)
+  
+  class.Top3 <- factor(ifelse(fit.pred.Top3 > cutoff.Top3, 'Yes','No'),levels = c('No','Yes'))
+  CM2 = confusionMatrix(class.Top3, cs2.LogTest$Attrition)
+  
+  class.lasso <- factor(ifelse(fit.pred.lasso > cutoff.lasso, 'Yes','No'),levels = c('No','Yes'))
+  CM3 = confusionMatrix(class.lasso, cs2.LogTest$Attrition)
+  
+  # Gather Relevant Stats
+  CM1.Acc.Holder <- c(CM1.Acc.Holder, CM1$overall[1])
+  CM2.Acc.Holder <- c(CM2.Acc.Holder, CM2$overall[1])
+  CM3.Acc.Holder <- c(CM3.Acc.Holder, CM3$overall[1])
+
+  CM1.Sens.Holder <- c(CM1.Sens.Holder, CM1$byClass[1])
+  CM2.Sens.Holder <- c(CM2.Sens.Holder, CM2$byClass[1])
+  CM3.Sens.Holder <- c(CM3.Sens.Holder, CM3$byClass[1])
+  
+  CM1.Spec.Holder <- c(CM1.Spec.Holder, CM1$byClass[2])
+  CM2.Spec.Holder <- c(CM2.Spec.Holder, CM2$byClass[2])
+  CM3.Spec.Holder <- c(CM3.Spec.Holder, CM3$byClass[2])
+  
+  
+}
+
+# reorganize stats
+custom.stats <- data.frame(Acc = CM1.Acc.Holder, Sens = CM1.Sens.Holder, Spec = CM1.Spec.Holder)
+
+Top3.stats <- data.frame(Acc = CM2.Acc.Holder, Sens = CM2.Sens.Holder, Spec = CM2.Spec.Holder)
+
+lasso.stats <- data.frame(Acc = CM3.Acc.Holder, Sens = CM3.Sens.Holder, Spec = CM3.Spec.Holder)
+
+g1 = custom.stats %>% ggplot(aes(x = Acc)) + geom_histogram(binwidth = 0.05) + scale_x_continuous(breaks = seq(0.4,1,.1), limits = c(0.4, 1)) +
+  ggtitle("Custom - JobLevel + JobRole + OverTime + JobInvolvement + MaritalStatus")
+
+g2 = Top3.stats %>% ggplot(aes(x = Acc)) + geom_histogram(binwidth = 0.05) + scale_x_continuous(breaks = seq(0.4,1,.1), limits = c(0.4, 1)) +
+  ggtitle("Top3 - MS + OT")
+
+g3 = lasso.stats %>% ggplot(aes(x = Acc)) + geom_histogram(binwidth = 0.05) + scale_x_continuous(breaks = seq(0.4,1,.1), limits = c(0.4, 1)) + ggtitle("Lasso")
+g4 = ggdraw() + draw_label("Accuracy", fontface = 'bold', x = 0, hjust = 0) + theme(plot.margin = margin(0,0,0,7))
+  
+plot_grid(g4,g1,g2,g3,nrow = 4, rel_heights = c(0.5,2,2,2))  
+  
+g1 = custom.stats %>% ggplot(aes(x = Sens)) + geom_histogram(binwidth = 0.05) + scale_x_continuous(breaks = seq(0.4,1,.1), limits = c(0.4, 1)) +
+  ggtitle("Custom - JobLevel + JobRole + OverTime + JobInvolvement + MaritalStatus")
+
+g2 = Top3.stats %>% ggplot(aes(x = Sens)) + geom_histogram(binwidth = 0.05) + scale_x_continuous(breaks = seq(0.4,1,.1), limits = c(0.4, 1)) +
+  ggtitle("Top3 - JL + MS+ OT")
+
+g3 = lasso.stats %>% ggplot(aes(x = Sens)) + geom_histogram(binwidth = 0.05) + scale_x_continuous(breaks = seq(0.4,1,.1), limits = c(0.4, 1)) + ggtitle("Lasso")
+g4 = ggdraw() + draw_label("Sensitivity", fontface = 'bold', x = 0, hjust = 0) + theme(plot.margin = margin(0,0,0,7))
+  
+plot_grid(g4,g1,g2,g3,nrow = 4, rel_heights = c(0.5,2,2,2))
+  
+g1 = custom.stats %>% ggplot(aes(x = Spec)) + geom_histogram(binwidth = 0.05) + scale_x_continuous(breaks = seq(0,1,.1), limits = c(0, 1)) + 
+  ggtitle("Custom - JobLevel + JobRole + OverTime + JobInvolvement + MaritalStatus")
+
+g2 = Top3.stats %>% ggplot(aes(x = Spec)) + geom_histogram(binwidth = 0.05) + scale_x_continuous(breaks = seq(0,1,.1), limits = c(0, 1)) +
+  ggtitle("Top3- JL + MS+ OT")
+
+g3 = lasso.stats %>% ggplot(aes(x = Spec)) + geom_histogram(binwidth = 0.05) + scale_x_continuous(breaks = seq(0,1,.1), limits = c(0, 1)) + ggtitle("Lasso")
+g4 = ggdraw() + draw_label("Specificity", fontface = 'bold', x = 0, hjust = 0) + theme(plot.margin = margin(0,0,0,7))
+
+plot_grid(g4,g1,g2,g3,nrow = 4, rel_heights = c(0.5,2,2,2))
+```
 
 
 

@@ -22,6 +22,7 @@ library(ggcorrplot)
 library(Lahman)
 library(olsrr)
 library(glmnet)
+library(cowplot)
 ```
 
 ```{r}
@@ -40,12 +41,6 @@ cs2.numeric = cs2.data %>% dplyr::select(Age, DailyRate, DistanceFromHome, Hourl
 ```
 
 ```{r}
-library(esquisse)
-esquisser(cs2.data)
-```
-
-
-```{r}
 # No Apparent NA Values, need to check for other NA identifiers
 gg_miss_var(cs2.data)
 
@@ -60,7 +55,7 @@ summary(cs2.data)
 ```
 
 ```{r}
-# trying to take a look at collinearity
+# take a look at collinearity
 pairs(cs2.numeric)
 ```
 
@@ -72,10 +67,9 @@ pairs(cs2.numeric)
 corr <- round(cor(cs2.numeric), 3)
 
 ggcorrplot(corr, hc.order = TRUE, type = "lower",
-           lab = TRUE, lab_size = 3, method = "circle",
+           lab = TRUE, lab_size = 3, method = "square",
            colors = c("tomato2", "white", "springgreen3"),
-           title = "Correlations of Selected Variables",
-           ggtheme = theme_bw())
+           title = "Correlations of Selected Continous Variables")
 ```
 
 # Age Vs Everything (numeric)
@@ -123,23 +117,6 @@ cs2.data %>% ggplot(aes(x = YearsWithCurrManager, fill = Attrition)) + geom_hist
   aes(y = stat(count)/sum(stat(count))) + scale_y_continuous(labels = scales::percent) + facet_wrap(~Attrition)
 ```
 
-
-# Something interesting 1
-```{r, warning = FALSE}
-cs2.data %>% filter(Attrition == "Yes") %>% ggplot(aes(x = YearsWithCurrManager)) + geom_histogram(binwidth = 1, fill = "#00BFC4") + 
-  aes(y = stat(count)/sum(stat(count))) + scale_y_continuous(labels = scales::percent) + ylab("Percent Attrition") + xlab("Years With Current Manager") + 
-  ggtitle("Distribution of Attrition by Years with Current Manager") + 
-  geom_vline(xintercept = 3, color = "red", size = 1.5, linetype = "dashed") + 
-  scale_x_continuous(breaks = sort(c(seq(0,20,5), 3)), limits = c(0,20), expand = c(0,0))
-
-# Of those who leave 40% do so before the end of the first year, 60% by year 3, and by year 7 90%
-cs2.data %>% filter(Attrition == "Yes") %>% ggplot(aes(x = YearsWithCurrManager)) + stat_ecdf() + 
-  scale_y_continuous(breaks = seq(0,1,0.1)) + scale_x_continuous(breaks = seq(1,15,1)) + 
-  geom_vline(xintercept = 2, color = "red", size = 1.5, linetype = "dashed") +
-  geom_vline(xintercept = 7, color = "gold", size = 1.5, linetype = "dashed") +
-  ggtitle("Cumulative Proportion of Attrition by Years with Current Manager") + ylab("Cumulative Proportion of Attrition") +
-  xlab("Years With Current Manager")
-```
 
 
 # Stuff vs Daily Rate
@@ -196,8 +173,6 @@ cs2.data %>% ggplot(aes(x = DistanceFromHome, y = YearsSinceLastPromotion, color
 cs2.data %>% ggplot(aes(x = DistanceFromHome, y = YearsWithCurrManager, color = Attrition)) + geom_point()
 
 ```
-
-
 # Stuff vs Hourly Rate
 ```{r}
 cs2.data %>% ggplot(aes(x = HourlyRate, y = MonthlyIncome, color = Attrition)) + geom_point()
@@ -328,6 +303,7 @@ cs2.data %>% ggplot(aes(x = TrainingTimesLastYear, y = YearsWithCurrManager , co
 
 # Years at Company
 ```{r}
+# Years positively correlated with other time measuring variable no suprise
 cs2.data %>% ggplot(aes(x = YearsAtCompany, y =  YearsInCurrentRole, color = Attrition)) + geom_point()
 
 cs2.data %>% ggplot(aes(x = YearsAtCompany, y = YearsSinceLastPromotion , color = Attrition)) + geom_point()
@@ -349,157 +325,304 @@ cs2.data %>% ggplot(aes(x = YearsInCurrentRole, y = YearsWithCurrManager , color
 cs2.data %>% ggplot(aes(x = YearsSinceLastPromotion, y = YearsWithCurrManager , color = Attrition)) + geom_point()
 ```
 
+# The Well Plotted Interesting Stuff
+## Something interesting 1 -  Cumulative Attrition by Years with current manager
+```{r, warning = FALSE}
+cs2.data %>% filter(Attrition == "Yes") %>% ggplot(aes(x = YearsWithCurrManager)) + geom_histogram(binwidth = 1, fill = "#00BFC4") + 
+  aes(y = stat(count)/sum(stat(count))) + scale_y_continuous(labels = scales::percent) + ylab("Percent Attrition") + xlab("Years With Current Manager") + 
+  ggtitle("Distribution of Attrition by Years with Current Manager") + 
+  geom_vline(xintercept = 2, color = "red", size = 1.5, linetype = "dashed") + 
+  scale_x_continuous(breaks = sort(c(seq(0,20,5), 3)), limits = c(0,20), expand = c(0,0))
+
+# Of those who leave 40% do so before the end of the first year, 60% by year 3, and by year 7 90%
+cs2.data %>% filter(Attrition == "Yes") %>% ggplot(aes(x = YearsWithCurrManager)) + stat_ecdf() + 
+  scale_y_continuous(breaks = seq(0,1,0.1)) + scale_x_continuous(breaks = seq(1,15,1)) + 
+  geom_vline(xintercept = 2, color = "red", size = 1.5, linetype = "dashed") +
+  geom_vline(xintercept = 7, color = "darkred", size = 1.5, linetype = "dashed") +
+  ggtitle("Cumulative Proportion of Attrition by Years with Current Manager") + ylab("Cumulative Proportion of Attrition") +
+  xlab("Years With Current Manager")
 
 
-# Start of PCA
+cs2.data %>% filter(Attrition == "Yes") %>% ggplot(aes(x = YearsInCurrentRole)) + geom_histogram(binwidth = 1, fill = "#00BFC4") + 
+  aes(y = stat(count)/sum(stat(count))) + scale_y_continuous(labels = scales::percent) + ylab("Percent Attrition") + xlab("Years in Current Role") + 
+  ggtitle("Distribution of Attrition by Years in Current Role") + 
+  geom_vline(xintercept = 2, color = "red", size = 1.5, linetype = "dashed") + 
+  scale_x_continuous(breaks = sort(c(seq(0,20,5), 3)), limits = c(0,20), expand = c(0,0))
+
+# Of those who leave 40% do so before the end of the first year, 60% by year 3, and by year 7 90%
+cs2.data %>% filter(Attrition == "Yes") %>% ggplot(aes(x = YearsInCurrentRole)) + stat_ecdf() + 
+  scale_y_continuous(breaks = seq(0,1,0.1)) + scale_x_continuous(breaks = seq(1,15,1)) + 
+  geom_vline(xintercept = 2, color = "red", size = 1.5, linetype = "dashed") +
+  geom_vline(xintercept = 7, color = "darkred", size = 1.5, linetype = "dashed") +
+  ggtitle("Cumulative Proportion of Attrition by Years In Current Role") + ylab("Cumulative Proportion of Attrition") +
+  xlab("Years In Current Role")
+
+
+cs2.data %>% filter(Attrition == "Yes") %>% ggplot(aes(x = YearsAtCompany)) + geom_histogram(binwidth = 1, fill = "#00BFC4") + 
+  aes(y = stat(count)/sum(stat(count))) + scale_y_continuous(labels = scales::percent) + ylab("Percent Attrition") + xlab("Years at Company") + 
+  ggtitle("Distribution of Attrition by Years at Company") + 
+  geom_vline(xintercept = 2, color = "red", size = 1.5, linetype = "dashed") + 
+  scale_x_continuous(breaks = sort(c(seq(0,20,5), 3)), limits = c(0,20), expand = c(0,0))
+
+# Of those who leave 40% do so before the end of the first year, 60% by year 3, and by year 7 90%
+cs2.data %>% filter(Attrition == "Yes") %>% ggplot(aes(x = YearsAtCompany)) + stat_ecdf() + 
+  scale_y_continuous(breaks = seq(0,1,0.1)) + scale_x_continuous(breaks = seq(1,20,1), limits = c(0,20)) + 
+  geom_vline(xintercept = 2, color = "red", size = 1.5, linetype = "dashed") +
+  geom_vline(xintercept = 10, color = "darkred", size = 1.5, linetype = "dashed") +
+  ggtitle("Cumulative Proportion of Attrition by Years At Company") + ylab("Cumulative Proportion of Attrition") +
+  xlab("Years At Company")
+```
+## Jobfullfillment and Marital Status
 ```{r}
-cs2.PCs <- cs2.numeric[,-15]
+# No change in worklife balance between the groups
+g1 = ggplot(cs2.data) +
+      aes(x = MaritalStatus, y = WorkLifeBalance, fill = MaritalStatus) +
+      geom_boxplot() + theme(legend.position = "none") + theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.title.x = element_blank()) +
+      scale_fill_manual(values= c("firebrick1", "darkorchid2", "deepskyblue"))
+ 
+# Single generally make slightly less money than other two, likely age dependent
+g2 = ggplot(cs2.data) +
+      aes(x = MaritalStatus, y = MonthlyIncome, fill = MaritalStatus) +
+      geom_boxplot() + theme(legend.position = "none") + theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.title.x = element_blank()) +
+      scale_fill_manual(values= c("firebrick1", "darkorchid2", "deepskyblue"))
 
-pc.result <- prcomp(cs2.PCs,scale. = TRUE)
-pc.scores <- pc.result$x
+# Divorced are reporting lower job satisfactions though their median satisfaction is unchanged
+g3 = ggplot(cs2.data) +
+      aes(x = MaritalStatus, y = JobSatisfaction, fill = MaritalStatus) +
+      geom_boxplot() + theme(legend.position = "none") + theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.title.x = element_blank()) + 
+      scale_fill_manual(values= c("firebrick1", "darkorchid2", "deepskyblue"))
+  
+g11 = ggdraw() + draw_label("Marital Status and Job Fulfillment", fontface = 'bold', x = 0, hjust = 0) + theme(plot.margin = margin(0,0,0,7))
 
-#Looking At PC's
-pc.scores = data.frame(pc.scores)
-pc.scores$AttNum <- cs2.numeric$AttNum
+plot_grid(g11,NULL,NULL,NULL,NULL,g1,NULL,g2,NULL,g3, ncol = 5, nrow = 2, rel_widths = c(2,0.5,2,0.5,2), rel_heights = c(0.5,4))
+```
+## Jobfullfillment and Gender
+```{r}
+# No change in worklife balance between the groups
+g1 = ggplot(cs2.data) +
+      aes(x = Gender, y = WorkLifeBalance, fill = Gender) +
+      geom_boxplot() + theme(legend.position = "none") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+      scale_fill_manual(values = c("pink", "dodgerblue1"))
+ 
+# Single generally make slightly less money than other two, likely age dependent
+g2 = ggplot(cs2.data) +
+      aes(x = Gender, y = MonthlyIncome, fill = Gender) +
+      geom_boxplot() + theme(legend.position = "none") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+      scale_fill_manual(values = c("pink", "dodgerblue1"))
+
+# Divorced are reporting lower job satisfactions though their median satisfaction is unchanged
+g3 = ggplot(cs2.data) +
+      aes(x = Gender, y = JobSatisfaction, fill = Gender) +
+      geom_boxplot() + theme(legend.position = "none") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+      scale_fill_manual(values = c("pink", "dodgerblue1"))
+  
+g11 = ggdraw() + draw_label("Gender and Job Fulfillment", fontface = 'bold', x = 0, hjust = 0) + theme(plot.margin = margin(0,0,0,7))
+
+plot_grid(g11,NULL,NULL,NULL,NULL,g1,NULL,g2,NULL,g3, ncol = 5, nrow = 2, rel_widths = c(2,0.5,2,0.5,2), rel_heights = c(0.5,4))
 ```
 
 ```{r}
-# Scree Plot
-# Seems to suggest 8 Pcs
-par(mfrow=c(1,2))
-eigenvals<-(pc.result$sdev)^2
-plot(1:14,eigenvals/sum(eigenvals),type="l",main="Scree Plot",ylab="Prop. Var. Explained")
-cumulative.prop<-cumsum(eigenvals/sum(eigenvals))
-plot(1:14,cumulative.prop,type="l",main="Cumulative proportion",ylim=c(0,1))
-par(mfrow=c(1,1))
+# No change in worklife balance between the groups
+g1 = ggplot(cs2.data) +
+      aes(x = JobLevel, y = WorkLifeBalance, fill = JobLevel, group = JobLevel) +
+      geom_boxplot() + theme(legend.position = "none") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+ 
+# Single generally make slightly less money than other two, likely age dependent
+g2 = ggplot(cs2.data) +
+      aes(x = JobLevel, y = MonthlyIncome, fill = JobLevel, group = JobLevel) +
+      geom_boxplot() + theme(legend.position = "none") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+# Divorced are reporting lower job satisfactions though their median satisfaction is unchanged
+g3 = ggplot(cs2.data) +
+      aes(x = JobLevel, y = JobSatisfaction, fill = JobLevel, group = JobLevel) +
+      geom_boxplot() + theme(legend.position = "none") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+  
+g11 = ggdraw() + draw_label("Job Level and Job Fulfillment", fontface = 'bold', x = 0, hjust = 0) + theme(plot.margin = margin(0,0,0,7))
+
+plot_grid(g11,NULL,NULL,NULL,NULL,g1,NULL,g2,NULL,g3, ncol = 5, nrow = 2, rel_widths = c(2,0.5,2,0.5,2), rel_heights = c(0.5,4))
 ```
 
 ```{r}
-# Nothing Looks useful - no separation, no groupings
-pc.scores %>% ggplot(aes(x = PC1, y = PC2, color = AttNum, group = AttNum)) + geom_point()
-
-pc.scores %>% ggplot(aes(x = PC1, y = PC3, color = AttNum)) + geom_point()
-
-pc.scores %>% ggplot(aes(x = PC2, y = PC3, color = AttNum)) + geom_point()
-
-pc.scores %>% ggplot(aes(x = PC2, y = PC4, color = AttNum)) + geom_point()
-
-pc.scores %>% ggplot(aes(x = PC1, y = PC6, color = AttNum)) + geom_point()
-
-pc.scores %>% ggplot(aes(x = PC1, y = PC7, color = AttNum)) + geom_point()
-
-pc.scores %>% ggplot(aes(x = PC1, y = PC8, color = AttNum)) + geom_point()
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# LASSO REGRESSION - it works but its not super useful without significant changes to the data -  like changing all factors to numeric analogs...
-```{r}
-# Create Train and Test sets ----
-## currently 90/10 Train/Test proportion of yes to no is 16 to 84
-cs2.yes <- subset(cs2.numeric, AttNum == 1)
-cs2.no <- subset(cs2.numeric, AttNum == 0)
-
-set.seed(35)
-index.yes <- sample(1:dim(cs2.yes)[1],floor(0.9*dim(cs2.yes)),replace=F)
-train.yes <- cs2.yes[index.yes,]
-test.yes <- cs2.yes[-index.yes,]
-
-index.no <- sample(1:dim(cs2.no)[1],floor(0.9*dim(cs2.no)),replace=F)
-train.no <- cs2.no[index.no,]
-test.no <- cs2.no[-index.no,]
-
-cs2.LassoTrain <- rbind(train.no, train.yes)
-cs2.LassoTest <- rbind(test.no, test.yes)
-
-# remove intermediate data sets
-rm(test.no, test.yes, train.no, train.yes, cs2.no, cs2.yes)
+# No change in worklife balance between the groups
+g1 = ggplot(cs2.data) +
+      aes(x = BusinessTravel, y = WorkLifeBalance, fill = BusinessTravel) +
+      geom_boxplot() + theme(legend.position = "none") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+ 
+# Single generally make slightly less money than other two, likely age dependent
+g2 = ggplot(cs2.data) +
+      aes(x = BusinessTravel, y = MonthlyIncome, fill = BusinessTravel) +
+      geom_boxplot() + theme(legend.position = "none") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+# Divorced are reporting lower job satisfactions though their median satisfaction is unchanged
+g3 = ggplot(cs2.data) +
+      aes(x = BusinessTravel, y = JobSatisfaction, fill = BusinessTravel) +
+      geom_boxplot() + theme(legend.position = "none") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+  
+g11 = ggdraw() + draw_label("Business Travel and Job Fulfillment", fontface = 'bold', x = 0, hjust = 0) + theme(plot.margin = margin(0,0,0,7))
+
+
+# Yep singles are generally younger...
+ggplot(cs2.data) +
+      aes(x = MaritalStatus, y = Age, fill = MaritalStatus) +
+      geom_boxplot() + theme(legend.position = "none") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+
+plot_grid(g11,NULL,NULL,NULL,NULL,g1,NULL,g2,NULL,g3, ncol = 5, nrow = 2, rel_widths = c(2,0.5,2,0.5,2), rel_heights = c(0.5,4))
 ```
 
 ```{r}
-CV = cv.glmnet(x = as.matrix(cs2.LassoTrain[,-15]), y = as.matrix(cs2.LassoTrain[,15]), 
-               family = "binomial", type.measure = "class", alpha = 1, nlambda = 1000)
+# Here we can see that overtime and education field effect attrition. Those who work overtime are much more likely to leave.
+# Most severe in marketing -  Human resources seems to have a lot no matter what
+cs2.data %>% 
+  group_by(OverTime, EducationField, Attrition) %>%
+  summarise(count = n()) %>% 
+  mutate(Perc = (count/sum(count))) %>%
+  ggplot(aes(x = EducationField, y = Perc, fill = Attrition, group = Attrition)) + 
+  geom_col() + facet_wrap(~OverTime) + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  geom_text(aes(x = EducationField, y = Perc, label = round(Perc,3), group = Attrition), position = position_stack(vjust = 0.5)) +
+  ggtitle("Education Field by Overtime and Attrition")
+
+cs2.data %>% 
+  group_by(OverTime, JobLevel, Attrition) %>%
+  summarise(count = n()) %>% 
+  mutate(Perc = (count/sum(count))) %>%
+  ggplot(aes(x = JobLevel, y = Perc, fill = Attrition, group = Attrition)) + 
+  geom_col() + facet_wrap(~OverTime) + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  geom_text(aes(x = JobLevel, y = Perc, label = round(Perc,3), group = Attrition), position = position_stack(vjust = 0.5)) +
+  ggtitle("Job Level by Overtime and Attrition")
+
+cs2.data %>% 
+  group_by(OverTime, MaritalStatus, Attrition) %>%
+  summarise(count = n()) %>% 
+  mutate(Perc = (count/sum(count))) %>%
+  ggplot(aes(x = MaritalStatus, y = Perc, fill = Attrition, group = Attrition)) + 
+  geom_col() + facet_wrap(~OverTime) + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  geom_text(aes(x = MaritalStatus, y = Perc, label = round(Perc,3), group = Attrition), position = position_stack(vjust = 0.5)) +
+  ggtitle("Marital Status by Overtime and Attrition")
+
+cs2.data %>% 
+  group_by(OverTime, JobRole, Attrition) %>%
+  summarise(count = n()) %>% 
+  mutate(Perc = (count/sum(count))) %>%
+  ggplot(aes(x = JobRole, y = Perc, fill = Attrition, group = Attrition)) + 
+  geom_col() + facet_wrap(~OverTime) + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  geom_text(aes(x = JobRole, y = Perc, label = round(Perc,3), group = Attrition), position = position_stack(vjust = 0.5), size = 2.5) +
+  ggtitle("Job Role by Overtime and Attrition")
+```
+
+
+```{r}
+g1 = cs2.data %>% group_by(EmployeeCount) %>% summarise(count = n()) %>% ggplot(aes(x = EmployeeCount, y = count)) + geom_boxplot() + 
+      theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.y = element_blank()) + ggtitle("Employee Count is Constant at 870")
+
+g2 = cs2.data %>% 
+      group_by(Over18) %>% summarise(count = n()) %>% 
+      ggplot(aes(x = Over18, y = count, fill = Over18)) + geom_bar(stat = "identity", width = 0.5) + 
+      theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), legend.position = "none", axis.title.y = element_blank()) +
+      geom_text(aes(label = count), vjust = -0.25) + 
+      ggtitle("All Employees are Over 18") + scale_fill_manual(values = c("steelblue"))
+
+g11 = ggdraw() + draw_label("No Information Variables", fontface = 'bold', x = 0, hjust = 0) + theme(plot.margin = margin(0,0,0,7))
+
+plot_grid(g11, NULL, g1,g2,cols = 2, rows = 2, rel_heights = c(0.25,2))
 ```
 
 ```{r}
-plot(CV)
+cs2.data %>%
+  group_by(Attrition) %>%
+  summarize(count = n()) %>%
+  mutate(Perc = count/sum(count)) %>%
+  ggplot(aes(x = Attrition, y = Perc, fill = Attrition)) + geom_col() + 
+  geom_text(aes(label = round(Perc,3)), vjust = -0.25) + 
+  ggtitle("Attrition Balance in Data set")
+```
+
+# Travel
+```{r}
+ggplot(cs2.data) +
+  aes(x = JobRole, y = DistanceFromHome, fill = Attrition) +
+  geom_boxplot() +  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7), axis.title.x = element_blank()) +
+  ggtitle("Job Role by Distance from Home and Attrition")
+
+ggplot(cs2.data) +
+ aes(x = OverTime, y = DistanceFromHome, fill = Attrition) +
+ geom_boxplot()
+
+
+ggplot(cs2.data) +
+ aes(x = MaritalStatus, y = DistanceFromHome, fill = Attrition) +
+ geom_boxplot()
+
+
+ggplot(cs2.data) +
+ aes(x = BusinessTravel, y = DistanceFromHome, fill = Attrition) +
+ geom_boxplot()
+
+```
+# Possibly Important Continous Variables
+```{r}
+g1 = ggplot(cs2.data, aes(x = Attrition, y = YearsWithCurrManager, fill = Attrition)) + geom_boxplot() + 
+      theme(legend.position = "none",axis.title.x = element_blank()) + ylab("YrsWManager")
+
+g2 = ggplot(cs2.data, aes(x = Attrition, y = YearsAtCompany, fill = Attrition)) + geom_boxplot() + 
+      theme(legend.position = "none",axis.title.x = element_blank()) + ylab("YrsAtCo.")
+
+g3 = ggplot(cs2.data, aes(x = Attrition, y = YearsInCurrentRole, fill = Attrition)) + geom_boxplot() + 
+      theme(legend.position = "none",axis.title.x = element_blank()) + ylab("YrsInRole")
+
+g4 = ggplot(cs2.data, aes(x = Attrition, y = Age, fill = Attrition)) + geom_boxplot() + 
+      theme(legend.position = "none",axis.title.x = element_blank())
+
+g5 = ggplot(cs2.data, aes(x = Attrition, y = MonthlyIncome, fill = Attrition)) + geom_boxplot() + 
+      theme(legend.position = "none",axis.title.x = element_blank())
+
+g6 = ggplot(cs2.data, aes(x = Attrition, y = TotalWorkingYears, fill = Attrition)) + geom_boxplot() + 
+      theme(legend.position = "none",axis.title.x = element_blank()) + ylab("WorkingYears")
+
+g7 = ggplot(cs2.data, aes(x = Attrition, y = DistanceFromHome, fill = Attrition)) + geom_boxplot() +
+      theme(axis.title.x = element_blank())
+
+g11 = ggdraw() + draw_label("Largest Spread Continous Variables", fontface = 'bold', x = 0, hjust = 0) + theme(plot.margin = margin(0,0,0,7))
+
+plot_grid(g11,NULL,NULL,g1,g2,g3,g4,g5,g6,NULL,g7,NULL, rows = 4, cols = 3, rel_heights = c(0.5,2,2,2))
 ```
 
 ```{r}
-Fit1 = glmnet(x = as.matrix(cs2.LassoTrain[,-15]), y = as.matrix(cs2.LassoTrain[,15]), 
-               family = "binomial", type.measure = "class", alpha = 1, lambda = CV$lambda.min)
+g1 = cs2.data %>% group_by(JobInvolvement, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+      ggplot(aes(x = JobInvolvement, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1), legend.position = "none", axis.title.y = element_blank())
+
+g2 = cs2.data %>% group_by(JobLevel, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+      ggplot(aes(x = JobLevel, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1), legend.position = "none", axis.title.y = element_blank())
+
+g3 = cs2.data %>% group_by(JobRole, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+      ggplot(aes(x = JobRole, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1, size = 8), 
+            legend.position = "none", axis.title.y = element_blank())
+
+g4 = cs2.data %>% group_by(MaritalStatus, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+      ggplot(aes(x = MaritalStatus, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1), legend.position = "none", axis.title.y = element_blank())
+
+g5 = cs2.data %>% group_by(NumCompaniesWorked, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+      ggplot(aes(x = NumCompaniesWorked, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1), legend.position = "none", axis.title.y = element_blank())
+
+g6 = cs2.data %>% group_by(OverTime, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+      ggplot(aes(x = OverTime, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1), legend.position = "none", axis.title.y = element_blank())
+
+g7 = cs2.data %>% group_by(StockOptionLevel, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+      ggplot(aes(x = StockOptionLevel, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1), legend.position = "none", axis.title.y = element_blank())
+
+g8 = cs2.data %>% group_by(WorkLifeBalance, Attrition) %>% summarise(count = n()) %>% mutate(Perc = (count/sum(count))) %>% 
+      ggplot(aes(x = WorkLifeBalance, y = Perc, fill = Attrition)) + geom_bar(stat = "identity") + 
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.65, hjust = 1), legend.position = "none", axis.title.y = element_blank())
+
+g11 = ggdraw() + draw_label("Largest Difference Categorical Variables", fontface = 'bold', x = 0, hjust = 0) + theme(plot.margin = margin(0,0,0,7))
+
+plot_grid(g11,NULL,NULL,NULL,g1,g2,g3,g4,NULL,NULL,NULL,NULL,g5,g6,g7,g8, cols = 4, rows = 4, rel_heights = c(0.3,2,0.5,2))
 ```
-
-```{r}
-Fit1$beta[,1]
-```
-
-
-
-```{r}
-linearmodel.full <- 
-```
-
-
-
-
-
 
