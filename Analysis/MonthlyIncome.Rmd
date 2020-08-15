@@ -201,7 +201,7 @@ ols_plot_cooksd_bar(Model.MIStep)
 
 ```{r}
 # partial residuals of the step model just input the model name you would like to look at.
-ols_plot_added_variable(Model.MIMin)
+#ols_plot_added_variable(Model.MIMin)
 ```
 
 ```{r}

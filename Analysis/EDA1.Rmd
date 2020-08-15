@@ -512,19 +512,19 @@ cs2.data %>%
 
 
 ```{r}
-g1 = cs2.data %>% group_by(EmployeeCount) %>% summarise(count = n()) %>% ggplot(aes(x = EmployeeCount, y = count)) + geom_boxplot() + 
+#g1 = cs2.data %>% group_by(EmployeeCount) %>% summarise(count = n()) %>% ggplot(aes(x = EmployeeCount, y = count)) + geom_boxplot() + 
       theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.y = element_blank()) + ggtitle("Employee Count is Constant at 870")
 
-g2 = cs2.data %>% 
-      group_by(Over18) %>% summarise(count = n()) %>% 
-      ggplot(aes(x = Over18, y = count, fill = Over18)) + geom_bar(stat = "identity", width = 0.5) + 
-      theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), legend.position = "none", axis.title.y = element_blank()) +
-      geom_text(aes(label = count), vjust = -0.25) + 
-      ggtitle("All Employees are Over 18") + scale_fill_manual(values = c("steelblue"))
+#g2 = cs2.data %>% 
+      #group_by(Over18) %>% summarise(count = n()) %>% 
+      #ggplot(aes(x = Over18, y = count, fill = Over18)) + geom_bar(stat = "identity", width = 0.5) + 
+      #theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), legend.position = "none", axis.title.y = element_blank()) +
+      #geom_text(aes(label = count), vjust = -0.25) + 
+      #ggtitle("All Employees are Over 18") + scale_fill_manual(values = c("steelblue"))
 
-g11 = ggdraw() + draw_label("No Information Variables", fontface = 'bold', x = 0, hjust = 0) + theme(plot.margin = margin(0,0,0,7))
+#g11 = ggdraw() + draw_label("No Information Variables", fontface = 'bold', x = 0, hjust = 0) + theme(plot.margin = margin(0,0,0,7))
 
-plot_grid(g11, NULL, g1,g2,cols = 2, rows = 2, rel_heights = c(0.25,2))
+#plot_grid(g11, NULL, g1,g2,cols = 2, rows = 2, rel_heights = c(0.25,2))
 ```
 
 ```{r}

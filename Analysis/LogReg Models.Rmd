@@ -285,14 +285,14 @@ legend("bottomright",legend=c("Lasso","Stepwise","Custom", "Top3"),col=c("red","
 ```
 # KNN Models
 ```{r}
-results.Knn <- prediction(prob, cs2.KNNTest$AttNum,)
-roc.Knn <- performance(results.Knn, measure = "tnr", x.measure = "fnr")
+#results.Knn <- prediction(prob, cs2.KNNTest$AttNum,)
+#roc.Knn <- performance(results.Knn, measure = "tnr", x.measure = "fnr")
 
 # a look at KNN vs the top LogReg Model -  KNN didnt do too well at classifying here due to a lot of the variation coming from the categorical variables
-plot(roc.Top3, col = "darkorchid4", main = "Comparison Between Winning Log Model and KNN")
-plot(roc.Knn, col = "orange", add = TRUE)
-abline(a = 0, b = 1)
-legend("bottomright",legend=c("Top3", "Knn"),col=c("darkorchid4", "orange"),lty=1,lwd=1)
+#plot(roc.Top3, col = "darkorchid4", main = "Comparison Between Winning Log Model and KNN")
+#plot(roc.Knn, col = "orange", add = TRUE)
+#abline(a = 0, b = 1)
+#legend("bottomright",legend=c("Top3", "Knn"),col=c("darkorchid4", "orange"),lty=1,lwd=1)
 ```
 # Predicitions Out for Classification
 ```{r}
